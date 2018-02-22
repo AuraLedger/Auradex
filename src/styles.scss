@@ -9,3 +9,8 @@ body {
 .bd { border: 1px solid red;}
 
 .clickable { cursor: pointer; }
+
+.mat-table {
+  overflow: auto;
+  max-height: 500px;
+}

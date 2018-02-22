@@ -2,10 +2,10 @@
   <div fxLayout="column">
     <mat-list>
       <mat-list-item>Markets</mat-list-item>  
-      <mat-list-item *ngFor="let market of markets" (click)="goTo(market)" class="mat-elevation-z2 clickable">
-        <img matListAvatar src="assets/coins/{{market.coin}}.png" alt="{{market.coin}}">
-        <h3 matLine> {{market.coin}}/{{market.base}} </h3>
-        <p matLine> {{market.price}} ({{market.change | percent}}) </p>
+      <mat-list-item *ngFor="let mark of markets" (click)="goTo(mark)" class="mat-elevation-z2 clickable">
+        <img matListAvatar src="assets/coins/{{mark.coin}}.png" alt="{{mark.coin}}">
+        <h3 matLine> {{mark.coin}}/{{mark.base}} </h3>
+        <p matLine> {{mark.price}} ({{mark.change | percent}}) </p>
       </mat-list-item>
     </mat-list> 
   </div>
@@ -13,8 +13,137 @@
     <div #chartTarget>
       chart target
     </div>
-     
+    <div fxLayout.gt-sm="row" fxLayout="column">
+      <mat-accordion fxFlex="50" [multi]="true">
+        <mat-expansion-panel [expanded]="isSellPanelOpen">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              Sell {{market.coinName}} ({{market.coin}})
+            </mat-panel-title>
+            <mat-panel-description>
+              {{market.coinName}} Balance: {{market.coinBalance}} {{market.coin}}
+            </mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <mat-form-field>
+            <input matInput placeholder="Amount">
+          </mat-form-field>
+
+          <mat-form-field>
+            <input matInput placeholder="Price">
+          </mat-form-field>
+
+          <button mat-raised-button color="primary">Place Order</button>
+
+        </mat-expansion-panel>
+
+        <mat-expansion-panel [expanded]="isBidPanelOpen">
+          <mat-expansion-panel-header>
+            <mat-panel-title fxLayoutAlign="start center">
+              Bids&nbsp; 
+              <mat-chip-list>
+                <mat-chip>{{bids.length}}</mat-chip>
+              </mat-chip-list>
+            </mat-panel-title>
+            <mat-panel-description>
+              Total: {{totalBids}} {{market.base}} 
+            </mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <mat-table #table [dataSource]="dataSource">
+
+            <ng-container matColumnDef="sum">
+              <mat-header-cell *matHeaderCellDef> Sum ({{market.base}}) </mat-header-cell>
+              <mat-cell *matCellDef="let element"> {{element.sum}} </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="total">
+              <mat-header-cell *matHeaderCellDef> Total ({{market.base}})</mat-header-cell>
+              <mat-cell *matCellDef="let element"> {{element.total}} </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="amount">
+              <mat-header-cell *matHeaderCellDef> Amount ({{market.coin}})</mat-header-cell>
+              <mat-cell *matCellDef="let element"> {{element.amount}} </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="price">
+              <mat-header-cell *matHeaderCellDef> Price ({{market.base}})</mat-header-cell>
+              <mat-cell *matCellDef="let element"> {{element.price}} </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
+          </mat-table>
+        </mat-expansion-panel>
+
+      </mat-accordion>
+
+      <mat-accordion fxFlex="50" [multi]="true">
+        <mat-expansion-panel [expanded]="isBuyPanelOpen">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              Buy {{market.coinName}} ({{market.coin}}) 
+            </mat-panel-title>
+            <mat-panel-description>
+              {{market.baseName}} Balance: {{market.baseBalance}} {{market.base}}
+            </mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <mat-form-field>
+            <input matInput placeholder="Amount">
+          </mat-form-field>
+
+          <mat-form-field>
+            <input matInput placeholder="Price">
+          </mat-form-field>
+          <button mat-raised-button color="accent">Place Order</button>
+        </mat-expansion-panel>
+        <mat-expansion-panel [expanded]="isAskPanelOpen">
+          <mat-expansion-panel-header>
+            <mat-panel-title fxLayoutAlign="start center">
+              Asks&nbsp;
+              <mat-chip-list>
+                <mat-chip>{{bids.length}}</mat-chip>
+              </mat-chip-list>
+            </mat-panel-title>
+            <mat-panel-description>
+              Total: {{totalBids}} {{market.base}} 
+            </mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <mat-table #table [dataSource]="dataSource">
+
+            <ng-container matColumnDef="sum">
+              <mat-header-cell *matHeaderCellDef> Sum ({{market.base}}) </mat-header-cell>
+              <mat-cell *matCellDef="let element"> {{element.sum}} </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="total">
+              <mat-header-cell *matHeaderCellDef> Total ({{market.base}})</mat-header-cell>
+              <mat-cell *matCellDef="let element"> {{element.total}} </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="amount">
+              <mat-header-cell *matHeaderCellDef> Amount ({{market.coin}})</mat-header-cell>
+              <mat-cell *matCellDef="let element"> {{element.amount}} </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="price">
+              <mat-header-cell *matHeaderCellDef> Price ({{market.base}})</mat-header-cell>
+              <mat-cell *matCellDef="let element"> {{element.price}} </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
+          </mat-table>
+        </mat-expansion-panel>
+      </mat-accordion>
+    </div>
   </div>
+
+  <div></div>
+
   <div>
     <mat-list>
       <mat-list-item>Recent Trades</mat-list-item>  
