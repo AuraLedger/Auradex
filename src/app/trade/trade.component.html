@@ -1,0 +1,25 @@
+<div fxLayout fxLayout.xs="column" fxLayoutAlign="center">
+  <div fxLayout="column">
+    <mat-list>
+      <mat-list-item>Markets</mat-list-item>  
+      <mat-list-item *ngFor="let market of markets" (click)="goTo(market)" class="mat-elevation-z2 clickable">
+        <img matListAvatar src="assets/coins/{{market.coin}}.png" alt="{{market.coin}}">
+        <h3 matLine> {{market.coin}}/{{market.base}} </h3>
+        <p matLine> {{market.price}} ({{market.change | percent}}) </p>
+      </mat-list-item>
+    </mat-list> 
+  </div>
+  <div fxFlex fxLayout="column" fxLayoutAlign="start stretch" class="center-panel">
+    <div #chartTarget>
+      chart target
+    </div>
+     
+  </div>
+  <div>
+    <mat-list>
+      <mat-list-item>Recent Trades</mat-list-item>  
+      <mat-list-item *ngFor="let trade of trades">
+      </mat-list-item>
+    </mat-list>
+  </div>
+</div>
