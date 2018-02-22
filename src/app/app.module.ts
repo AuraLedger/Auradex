@@ -11,22 +11,23 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatTableModule } from '@angular/material/table';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-
-
 import { FlexLayoutModule } from "@angular/flex-layout";
 
-import { AppRoutingModule } from './app-routing.module';
+import { LocalStorageModule } from 'angular-2-local-storage';
 
+import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { TradeComponent } from './trade/trade.component';
 import { WalletComponent } from './wallet/wallet.component';
+import { AddwalletComponent } from './addwallet/addwallet.component';
 
 
 @NgModule({
   declarations: [
     AppComponent,
     TradeComponent,
-    WalletComponent
+    WalletComponent,
+    AddwalletComponent
   ],
   imports: [
     BrowserModule,
@@ -44,7 +45,11 @@ import { WalletComponent } from './wallet/wallet.component';
     MatChipsModule, 
     MatTableModule,
     MatDividerModule, 
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    LocalStorageModule.withConfig({
+      prefix: 'auradex',
+      storageType: 'localStorage'
+    })
   ],
   providers: [],
   bootstrap: [AppComponent]
