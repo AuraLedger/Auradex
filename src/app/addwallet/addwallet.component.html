@@ -1,0 +1,43 @@
+<h1 mat-dialog-title	> New Account </h1>
+
+<mat-dialog-content fxLayout="column">
+<mat-card>
+  <mat-card-title>Seed Words</mat-card-title>
+  <mat-card-subtitle>Write these down on paper and keep them safe.</mat-card-subtitle>	
+  <mat-card-content><h2 style="max-width: 700px">{{seedWords}}</h2></mat-card-content>
+</mat-card>
+<br />
+<br />
+<mat-form-field>
+  <input matInput color="warn" [(ngModel)]="accountName" placeholder="Account name" type="text"> 
+</mat-form-field>
+<span style="color: red" *ngIf="invalidAccountName()">{{accountName}} is already taken.</span>
+<span style="color: red" *ngIf="accountName == ''">Account name is required</span>
+
+<mat-form-field>
+  <input matInput [(ngModel)]="pwd1" placeholder="Enter a password" [type]="hide ? 'password' : 'text'"> 
+  <mat-icon matSuffix (click)="hide = !hide">{{hide ? 'visibility' : 'visibility_off'}}</mat-icon>
+</mat-form-field>
+<span style="color: red" *ngIf="!pwd1 || pwd1.length < 9">Password must be alteast 9 characters</span>
+
+<mat-form-field>
+  <input matInput [(ngModel)]="pwd2" placeholder="Repeat your password" [type]="hide ? 'password' : 'text'">
+  <mat-icon matSuffix (click)="hide = !hide">{{hide ? 'visibility' : 'visibility_off'}}</mat-icon>
+</mat-form-field>
+<span style="color: red" *ngIf="pwd1 !== pwd2">Passwords do not match</span>
+
+<mat-checkbox [(ngModel)]="agree1" align="end">I have written down my seed words.</mat-checkbox>
+<mat-checkbox [(ngModel)]="agree2" align="end">
+  I understand that if I forget my password, these seed words are the only way to recover my account.
+</mat-checkbox>
+
+<br />
+</mat-dialog-content>
+
+<mat-dialog-actions fxLayout="row" fxLayoutAlign="space-between center">
+  <button mat-raised-button color="warn" mat-dialog-close>Cancel</button>
+  <button mat-raised-button color="primary" (click)="create()" 
+    [disabled]="!agree1 || !agree2 || !pwd1 || pwd1.length == 0 || pwd1 !== pwd2">
+    Create
+  </button>
+</mat-dialog-actions>

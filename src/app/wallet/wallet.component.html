@@ -1,34 +1,40 @@
 <div fxLayout fxLayout.xs="column" fxLayoutAlign="center">
-  <div fxLayout="column">
+  <div fxLayout="column" fxLayoutAlign="start center">
     <mat-list>
       <mat-list-item><h3>Accounts</h3></mat-list-item>  
       <mat-list-item *ngIf="accounts.length==0">No Accounts</mat-list-item>  
-      <mat-list-item *ngFor="let acc of accounts" (click)="goTo(acc)" class="mat-elevation-z2 clickable">
-        <h3 matLine> {{acc.name}} </h3>
+      <mat-list-item *ngFor="let acc of accounts" (click)="goTo(acc)" class="mat-elevation-z2 clickable" [ngClass]="acc == account ? 'selected' : ''">
+        <h3 matLine> {{acc.accountName}} </h3>
       </mat-list-item>
     </mat-list> 
-    <button mat-raised-button color="accent" (click)="newAccount();">New Account</button>
+    <button style="margin-top: 10px"  mat-raised-button color="primary" (click)="newAccount();">New Account</button>
   </div>
+  <div style="width:20px">&nbsp;</div>
   <div fxFlex fxLayout="column" fxLayoutAlign="start stretch" class="center-panel">
     <mat-list>
       <mat-list-item>
+        <img src="assets/coin.png" alt="coin" class="coinlistlogo" />
         <span fxFlex="40"><h3>Coin</h3></span>
         <span fxFlex="40"><h3>Address</h3></span>
         <span fxFlex="20"><h3>Balance</h3></span>
+        <button [disabled]="true" matRaisedButton style="visible: invisible">Send</button>
       </mat-list-item>
-      <mat-list-item *ngFor="let coin of coins" class="mat-elevation-z2" fxLayout="row" fxLayoutAlign="space-between">
+      <!--<mat-list-item *ngFor="let coin of coins | coinTest" class="mat-elevation-z2" fxLayout="row" fxLayoutAlign="space-between">-->
+      <mat-list-item *ngFor="let coin of coins" class="mat-elevation-z2" fxFlexAlign="space-between center">
+        <img src="assets/coins/{{coin.ticker}}.png" alt="{{coin.ticker}}" class="coinlistlogo" />
         <span fxFlex="40" class="clickable" (click)="goToMarket(coin)">
-          <img src="assets/coins/{{coin.ticker}}.png" alt="{{coin.ticker}}" /> {{coin.name}} ({{coin.ticker}})
+           {{coin.name}} ({{coin.ticker}})
         </span>
         <span fxFlex="40"> 
           <span *ngIf="!account"><a role="button" (click)="unlock()">Unlock</a> {{coin.name}} on this account</span>
-          <span *ngIf="account && !coin.address"><a role="button" (click)="unlock()">Unlock</a> {{coin.name}} on this account</span>
-          {{coin.address}}
+          <span *ngIf="account && !account.hasOwnProperty(coin.name)"><a role="button" (click)="unlock()">Unlock</a> {{coin.name}} on this account</span>
+          {{account[coin.name].address}}
         </span>
-        <span fxFlex="20">
-          <mat-progress-spinner *ngIf="!coin.blanance && coin.balance != 0" mode="indeterminant" [diameter]=30 > </mat-progress-spinner>
-          {{coin.balance}} {{coin.ticker}}
+        <span fxFlex="20" fxLayout fxLayoutAlign="start center">
+          <mat-spinner *ngIf="!balances[coin.name] && balances[coin.name] != 0" [diameter]=30 > </mat-spinner>
+          <span *ngIf="balances[coin.name] || balances[coin.name] == 0">{{balances[coin.name]}} {{coin.ticker}}</span>
         </span>
+        <button matRaisedButton (click)="send(coin)">Send</button>
       </mat-list-item>
     </mat-list>
   </div>
