@@ -1,5 +1,6 @@
 <div fxLayout fxLayout.xs="column" fxLayoutAlign="center">
-  <div fxLayout="column" fxLayoutAlign="start center">
+  <div style="width:10px">&nbsp;</div>
+  <div fxLayout="column" fxLayoutAlign="start strech">
     <mat-list>
       <mat-list-item><h3>Accounts</h3></mat-list-item>  
       <mat-list-item *ngIf="accounts.length==0">No Accounts</mat-list-item>  
@@ -7,25 +8,30 @@
         <h3 matLine> {{acc.accountName}} </h3>
       </mat-list-item>
     </mat-list> 
-    <button style="margin-top: 10px"  mat-raised-button color="primary" (click)="newAccount();">New Account</button>
+    <button style="margin-top: 10px" mat-raised-button color="primary" (click)="newAccount();">New Account</button>
+    <button style="margin-top: 10px" mat-raised-button routerLink="/manage">Manage</button>
   </div>
   <div style="width:20px">&nbsp;</div>
   <div fxFlex fxLayout="column" fxLayoutAlign="start stretch" class="center-panel">
-    <mat-list>
+    <mat-list *ngIf="account && account.accountName">
       <mat-list-item>
         <img src="assets/coin.png" alt="coin" class="coinlistlogo" />
-        <span fxFlex="40"><h3>Coin</h3></span>
-        <span fxFlex="40"><h3>Address</h3></span>
+        <mat-form-field fxFlex="18">
+          <input matInput  placeholder="Coin (type to filter)" [(ngModel)]="filterText" />
+        </mat-form-field>  
+        <div fxFlex="2">&nbsp;</div>
+        <span fxFlex="60"><h3>Address</h3></span>
         <span fxFlex="20"><h3>Balance</h3></span>
-        <button [disabled]="true" matRaisedButton style="visible: invisible">Send</button>
+        <button [disabled]="true" mat-raised-button style="visibility: hidden">Send</button>
       </mat-list-item>
       <!--<mat-list-item *ngFor="let coin of coins | coinTest" class="mat-elevation-z2" fxLayout="row" fxLayoutAlign="space-between">-->
-      <mat-list-item *ngFor="let coin of coins" class="mat-elevation-z2" fxFlexAlign="space-between center">
+      <!--<mat-list-item *ngFor="let coin of coins | coinTestFilter" class="mat-elevation-z2" fxFlexAlign="space-between center">-->
+      <mat-list-item *ngFor="let coin of coins | coinTestFilter : filterText" class="mat-elevation-z2" fxFlexAlign="space-between center">
         <img src="assets/coins/{{coin.ticker}}.png" alt="{{coin.ticker}}" class="coinlistlogo" />
-        <span fxFlex="40" class="clickable" (click)="goToMarket(coin)">
-           {{coin.name}} ({{coin.ticker}})
+        <span fxFlex="20" class="clickable" (click)="goToMarket(coin)">
+          {{coin.name}} ({{coin.ticker}})
         </span>
-        <span fxFlex="40"> 
+        <span fxFlex="60" style="margin-right: 20px"> 
           <span *ngIf="!account"><a role="button" (click)="unlock()">Unlock</a> {{coin.name}} on this account</span>
           <span *ngIf="account && !account.hasOwnProperty(coin.name)"><a role="button" (click)="unlock()">Unlock</a> {{coin.name}} on this account</span>
           {{account[coin.name].address}}
@@ -34,8 +40,9 @@
           <mat-spinner *ngIf="!balances[coin.name] && balances[coin.name] != 0" [diameter]=30 > </mat-spinner>
           <span *ngIf="balances[coin.name] || balances[coin.name] == 0">{{balances[coin.name]}} {{coin.ticker}}</span>
         </span>
-        <button matRaisedButton (click)="send(coin)">Send</button>
+        <button mat-raised-button (click)="send(coin)">Send</button>
       </mat-list-item>
-    </mat-list>
+      </mat-list>
   </div>
+  <div style="width:10px">&nbsp;</div>
 </div>

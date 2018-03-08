@@ -4,8 +4,6 @@ import { MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material';
 import { AddwalletComponent } from '../addwallet/addwallet.component'
 import { SendComponent } from '../send/send.component'
 
-import * as Web3 from 'web3';
-
 import { CoinService } from '../coin.service'
 import { UserService } from '../user.service'
 
@@ -13,7 +11,6 @@ import { UserService } from '../user.service'
   selector: 'app-wallet',
   templateUrl: './wallet.component.html',
   styleUrls: ['./wallet.component.scss'],
-  entryComponents: [ AddwalletComponent ]
 })
 export class WalletComponent {
 
@@ -21,18 +18,14 @@ export class WalletComponent {
   accounts;
   coins;
   balances = {};
-  web3s = {};
 
   constructor(
-    private localStorageService: LocalStorageService, 
     public dialog: MatDialog, 
     public userService: UserService, 
     public coinService: CoinService) 
   { 
     this.coins = this.coinService.coins || [];
     this.setAccounts();
-
-    this.userService.showError('test');
   }
 
   goTo(acc) {
@@ -59,25 +52,19 @@ export class WalletComponent {
     }
     this.account = this.userService.getAccount();
     this.balances = {};
-    this.web3s = {};
     var that = this;
-    for(var j = 0; j < this.coins.length; j++)
-    {
-      var coin = this.coins[j];
-      (function(coin) {
-        if(that.userService.getSettings().useTestCoins || !coin.test) {
-          var w3 = new Web3(new Web3.providers.HttpProvider(coin.nodeUrl));
-          that.web3s[coin.name] = w3;
-          w3.eth.getBalance(that.account[coin.name].address, function (err, result) {
-            if(err) {
-              that.balances[coin.name] = "network error";
-              that.userService.showError(err);
+
+    if(this.account && this.account.accountName) {
+      for(var j = 0; j < this.coins.length; j++) {
+        var coin = this.coins[j];
+        (function(coin) {
+            if(that.userService.getSettings().useTestCoins || !coin.test) {
+                that.userService.getBalance(coin.name, function(b) {
+                    that.balances[coin.name] = b;
+                });
             }
-            else
-              that.balances[coin.name] = w3.fromWei(result, 'ether');
-          });
-        }
-      })(coin);
+        })(coin);
+      }
     }
   }
 
@@ -86,20 +73,15 @@ export class WalletComponent {
       data: {
         coin: coin,
         account: this.account,
-        w3: this.web3s[coin.name]
-      }
+        node: this.coinService.coind[coin.name].node,
+        balance: this.balances[coin.name]
+      },
+      width: "600px"
     });
 
     var that = this;
     dialogRef.afterClosed().subscribe(result => {
-      that.web3s[coin.name].eth.getBalance(that.account[coin.name].address, function(err, result){
-        if(err) {
-          that.balances[coin.name] = "network error";
-          that.userService.showError(err);
-        }
-        else
-          that.balances[coin.name] = that.web3s[coin.name].fromWei(result, 'ether');
-      });
+      that.balances[coin.name] = that.balances[coin.name] - result.amount;
     });
   }
 

@@ -1,0 +1,13 @@
+  <h3 mat-dialog-title color="warn">Delete Account "{{data.accountName}}"</h3>
+
+<mat-dialog-content fxLayout="column">
+  <p>WARNING: This action cannot be undone.  The only way to recover your account after deleting is by entering your original seed words you wrote down when creating the account.  </p>
+    <mat-form-field>
+      <input matInput color="warn" [(ngModel)]="confirmName" placeholder="Enter the account name to confirm deletion.">
+    </mat-form-field>
+</mat-dialog-content>
+
+<mat-dialog-actions fxLayout="row" fxLayoutAlign="space-between center">
+  <button mat-raised-button color="primary" mat-dialog-close>Cancel</button>
+  <button mat-raised-button color="warn" (click)="deleteAccount()">Delete</button>
+</mat-dialog-actions>

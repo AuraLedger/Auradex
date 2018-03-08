@@ -1,11 +1,10 @@
-import { Component, Inject } from '@angular/core';
+import { Component, Inject, EventEmitter} from '@angular/core';
 import { MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material';
 import { Buffer } from 'buffer';
 
 import { UserService } from '../user.service';
 
-import * as CryptoJS from 'crypto-js';
-import * as EthTx from'ethereumjs-tx'
+import * as EthTx from'ethereumjs-tx';
 
 @Component({
   selector: 'app-send',
@@ -17,9 +16,10 @@ export class SendComponent {
   dest;
   amount;
   gas;
-  gasLimit;
+  gasLimit = 200000;
   password;
   nonce;
+  hide = true;
 
   constructor(   
     public dialogRef: MatDialogRef<SendComponent >,
@@ -29,50 +29,88 @@ export class SendComponent {
     var sets = this.userService.getSettings();
     if(!sets.gas)
       sets.gas = {};
+    if(!sets.gasLimit)
+      sets.gasLimit = {};
+
     this.gas = sets.gas[this.data.coin.name] || 1;
-    data.w3.eth.getTransactionCount(data.address, function(err, result) {
-      if(err)
-        this.userService.showError(err);
+    sets.gas[this.data.coin.name] = this.gas;
+
+    this.gasLimit = sets.gasLimit[this.data.coin.name] || 200000;
+    sets.gasLimit[this.data.coin.name] = this.gasLimit;
+
+    this.userService.setSettings(sets);
+
+      //TODO: make this generic, let node handle most of the funcionality
+    var that = this;
+    this.data.node.eth.getTransactionCount(this.data.account[this.data.coin.name].address, function(err, result) {
+      if(err){
+        that.userService.showError(err);
+        console.error(err);
+        that.dialogRef.close();
+      }
       else
-        this.nonce = result;
+        that.nonce = result;
     });
   }
 
   send() {
+    var pass = this.password;
+    this.password = '';
     if(this.nonce || this.nonce === 0)
     {
-      var txConfig = {
-        nonce: this.nonce,
-        gasPrice: this.gas,
-        gasLimit: this.gasLimit,
-        to: this.dest,
-        value: this.data.w3.fromEther(this.amount, 'wei'),
-        data: '0x00'
+      var w3 = this.data.w3;
+
+      if(!w3.isAddress(this.dest)) {
+        this.userService.showError("Invalid destination address " + this.dest);
+        return;
       }
 
-      var privkey = CryptoJS.AES.decrypt(this.data.encprivkey, this.password).toString(CryptoJS.enc.Utf8);
+      var txConfig = {
+        nonce: w3.toHex(this.nonce),
+        gasPrice: w3.toHex(w3.toWei(this.gas, 'gwei')),
+        gasLimit: w3.toHex(this.gasLimit),
+        to: this.dest,
+        value: w3.toHex(w3.toWei(this.amount, 'ether')),
+        data: null, //should be Buffer if needed 
+        chainId: this.data.coin.chainId
+      }
+      var privkey = this.userService.decryptPrivateKey(this.data.coin.name, pass);
+
+      if (privkey.startsWith('0x'))
+        privkey = privkey.substring(2);
       var privbuf = new Buffer(privkey, 'hex');
+      privkey = '';
 
       var tx = new EthTx(txConfig);
       tx.sign(privbuf);
       var serializedTx = tx.serialize();
-
+      var that = this;
       this.data.w3.eth.sendRawTransaction('0x' + serializedTx.toString('hex'), function(err, result) {
         if(err)
-          this.userService.showError(err);
+          that.userService.showError(err);
         else { 
-          this.userService.showSuccess(result);
-          this.userService.addTransaction({
-            coin: this.data.coin.name,
-            from: this.data.account[this.data.coin.name],
-            to: this.dest,
-            amount: this.amount,
+          that.userService.showSuccess(result);
+          var sts = that.userService.getSettings()
+          sts.gas[that.data.coin.name] = that.gas;
+          sts.gasLimit[that.data.coin.name] = that.gasLimit;
+          that.userService.setSettings(sts);
+
+          var successTx = {
+            coin: that.data.coin.name,
+            from: that.data.account[that.data.coin.name].address,
+            to: that.dest,
+            amount: that.amount,
             txHash: result
-          });
+          };
+
+          that.userService.addTransaction(successTx);
+          that.dialogRef.close(successTx);
         }
       });
 
-    } else
+    } else {
       this.userService.showError("Unabled to get transaction nonce");
+      that.dialogRef.close();
+    }
   }
 }

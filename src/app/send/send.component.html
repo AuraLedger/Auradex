@@ -1,3 +1,46 @@
-<p>
-  send works!
-</p>
+
+<div mat-dialog-title fxLayout fxLayoutAlign="space-between center"> 
+  <h3>Send {{data.coin.name}}</h3> 
+  <span>Balance: <span class="linkbutton" (click)="amount = data.balance">{{data.balance}}</span> {{data.coin.ticker}}</span>
+</div>
+
+<mat-dialog-content fxLayout="column">
+  <div fxLayout>
+    <mat-form-field fxFlex="80">
+      <input matInput tabindex="0" color="warn" [(ngModel)]="dest" placeholder="Destination Address" type="text">
+    </mat-form-field>
+
+    <mat-form-field fxFlex="20">
+      <input matInput color="warn" [(ngModel)]="amount" placeholder="Amount" type="text">
+      <span matSuffix>{{data.coin.ticker}}</span>
+    </mat-form-field>
+  </div>
+
+  <div fxLayout>
+ 
+    <mat-form-field fxFlex="0 0 90px">
+      <input matInput color="warn" [(ngModel)]="gas" placeholder="Gas" type="number">
+      <span matSuffix>gwei</span>
+    </mat-form-field>
+    <div style="width: 20px">&nbsp;</div>
+    <div fxFlex>
+      <mat-slider [min]="1" [max]="200" [step]="1" [(ngModel)]="gas">Gas {{gas}} gwei</mat-slider>
+    </div>
+
+    <mat-form-field fxFlex="0 0 110px">
+      <input matInput color="warn" [(ngModel)]="gasLimit" placeholder="Gas Limit" type="number">
+      <span matSuffix>gwei</span>
+    </mat-form-field>
+  </div>
+
+  <mat-form-field>
+    <input matInput [(ngModel)]="password" placeholder="Enter account password" [type]="hide ? 'password' : 'text'">
+    <mat-icon matSuffix (click)="hide = !hide">{{hide ? 'visibility' : 'visibility_off'}}</mat-icon>
+  </mat-form-field>
+
+</mat-dialog-content>
+
+<mat-dialog-actions fxLayout="row" fxLayoutAlign="space-between center">
+  <button mat-raised-button color="warn" mat-dialog-close>Cancel</button>
+  <button mat-raised-button color="primary" (click)="send()">Send</button>
+</mat-dialog-actions>

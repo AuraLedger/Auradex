@@ -1,0 +1,47 @@
+<div fxLayout fxLayout.xs="column" fxLayoutAlign="center">
+  <div style="width:10px">&nbsp;</div>
+  <div fxLayout="column" fxLayoutAlign="start stretch">
+    <mat-list>
+      <mat-list-item><h3>Accounts</h3></mat-list-item>
+      <mat-list-item *ngIf="accounts.length==0">No Accounts</mat-list-item>
+      <mat-list-item *ngFor="let acc of accounts" (click)="goTo(acc)" class="mat-elevation-z2 clickable" [ngClass]="acc == account ? 'selected' : ''">
+        <h3 matLine> {{acc.accountName}} </h3>
+      </mat-list-item>
+    </mat-list>
+    <button style="margin-top: 10px" mat-raised-button color="primary" (click)="newAccount();">New Account</button>
+    <button style="margin-top: 10px" mat-raised-button routerLink="/wallet">View balances</button>
+  </div>
+  <div style="width:10px">&nbsp;</div>
+
+  <div *ngIf="account && account.accountName" fxFlex fxLayout="column" fxLayoutAlign="start stretch" class="center-panel mat-elevation-z6">
+    <h3>{{account.accountName}} settings</h3>
+    <div>
+      <div class="setting-col">
+        <button mat-raised-button (click)="unlock()">Unlock</button> 
+      </div>
+      <p>If new coins have been added, you can unlock their addresses here.</p>
+    </div>
+    <div>
+      <div class="setting-col">
+        <button mat-raised-button (click)="recover()">Recover</button> 
+      </div>
+      <p>Enter your seed words to restore an account.</p>
+    </div>
+    <div>
+      <div class="setting-col">
+        <button color="warn" mat-raised-button (click)="deleteAccount()">Delete</button> 
+      </div>
+      <p>The only way to recover your account after deleting it is by using your seed words.</p>
+    </div>
+  </div>
+
+  <div fxFlex fxLayout="column" fxLayoutAlign="start stretch" class="center-panel mat-elevation-z6">
+    <h3>Global settings</h3>
+    <div>
+      <div>
+        <mat-slide-toggle [(ngModel)]="testCoins" (change)="saveTest()">Show Test Coins</mat-slide-toggle>
+      </div>
+      <p>Applies to all accounts.</p>
+    </div>
+  </div>
+</div>

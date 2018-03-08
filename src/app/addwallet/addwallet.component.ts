@@ -20,7 +20,6 @@ export class AddwalletComponent {
   pwd2;
   agree1;
   agree2;
-  ref;
   bip39 = (<any>window).bip39js; 
   accountName = "Account 1";
 
@@ -31,7 +30,6 @@ export class AddwalletComponent {
     public userService: UserService
   ) { 
     this.generateSeedWords(); 
-    this.ref = dialogRef;
     var counter = 2;
     while(userService.accounts.hasOwnProperty(this.accountName)) {
       this.accountName = "Account " + counter;
@@ -44,7 +42,7 @@ export class AddwalletComponent {
     var errors = this.bip39.findPhraseErrors(this.seedWords);
     if(errors) {
       this.userService.showError(errors);
-      this.ref.close();
+      this.dialogRef.close();
     }
   }
 
@@ -62,7 +60,9 @@ export class AddwalletComponent {
       var account = {};
       var root = this.bip39.calcBip32RootKeyFromSeed(this.seedWords).toBase58();
       var encrootkey = CryptoJS.AES.encrypt(root, this.pwd1).toString();
+      var sharootkey = CryptoJS.SHA256(root).toString();
       account['encrootkey'] = encrootkey;
+      account['sharootkey'] = sharootkey;
       account['accountName'] = this.accountName;
       for(var i = 0; i < coins.length; i++)
       {
@@ -74,7 +74,7 @@ export class AddwalletComponent {
         var errors = this.bip39.findDerivationPathErrors(dPath);
         if(errors) {
           this.userService.showError(errors);
-          this.ref.close();
+          this.dialogRef.close();
           return;
         }
         var ext = this.bip39.calcBip32ExtendedKey(dPath).toBase58();
@@ -82,18 +82,22 @@ export class AddwalletComponent {
 
         var encprivkey = CryptoJS.AES.encrypt(data.privkey, this.pwd1).toString();
         var encextkey = CryptoJS.AES.encrypt(ext, this.pwd1).toString();
+        var shaprivkey = CryptoJS.SHA256(data.privkey).toString();
+        var shaextkey = CryptoJS.SHA256(shaextkey).toString();
 
         account[coin.name] = {
           address: data.address,
           pubkey: data.pubkey,
           encprivkey: encprivkey,
-          encextkey: encextkey
+          encextkey: encextkey,
+          shaprivkey: shaprivkey,
+          shaextkey: shaextkey,
         }
       }
       this.userService.accounts[this.accountName] = account;
       this.userService.selectAccount(this.accountName);
       this.userService.save();
-      this.ref.close(); 
+      this.dialogRef.close(); 
     }
   }
 }

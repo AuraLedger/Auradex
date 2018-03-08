@@ -3,7 +3,7 @@
 
 body {
   margin: 0px;
-  height: 100vh;
+  padding: 0px 5px 0px 5px;
 }
 
 .bd { border: 1px solid red;}
@@ -13,4 +13,24 @@ body {
 .mat-table {
   overflow: auto;
   max-height: 500px;
+}
+
+.error { 
+  background: black; 
+  color: red; 
+} 
+ 
+.success { 
+  background: white; 
+  color: green; 
+} 
+ 
+.linkbutton { 
+  cursor: pointer; 
+  text-decoration: underline; 
+  color:blue  
+}
+
+.selected {
+  background: #cc9c3c;
 }

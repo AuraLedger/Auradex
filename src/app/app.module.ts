@@ -2,6 +2,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { FlexLayoutModule } from "@angular/flex-layout";
 
 import { MatSidenavModule, MatToolbarModule, MatButtonModule, MatCheckboxModule } from '@angular/material';
 import { MatListModule } from '@angular/material/list';
@@ -15,23 +16,38 @@ import { MatTableModule } from '@angular/material/table';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDialogModule } from '@angular/material/dialog';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBarModule } from "@angular/material";
-
-import { FlexLayoutModule } from "@angular/flex-layout";
+import { MatSliderModule } from '@angular/material/slider';
 
 import { LocalStorageModule } from 'angular-2-local-storage';
+import * as hs from 'highcharts/highstock';
+import { ChartModule }             from 'angular2-highcharts'; 
 
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { TradeComponent } from './trade/trade.component';
 import { WalletComponent } from './wallet/wallet.component';
 import { AddwalletComponent } from './addwallet/addwallet.component';
+import { SendComponent } from './send/send.component';
 
 import { CoinService } from './coin.service';
 import { UserService } from './user.service';
-import { CoinTestPipe } from './coin-test.pipe';
-import { SendComponent } from './send/send.component';
+import { WebsocketService } from './websocket.service';
+import { NodeService } from './node.service';
+import { CryptoService } from './crypto.service';
 
+import { CoinTestPipe } from './coin-test.pipe';
+import { FilterPipe } from './filter.pipe';
+import { CoinFilterPipe } from './coin-filter.pipe';
+import { CoinTestFilterPipe } from './coin-test-filter.pipe';
+import { FocusDirective } from './focus.directive';
+import { SettingsComponent } from './settings/settings.component';
+import { ManageAccountComponent } from './manage-account/manage-account.component';
+import { DeleteComponent } from './delete/delete.component';
+import { PasswordComponent } from './password/password.component';
+
+declare var require: any
 
 @NgModule({
   declarations: [
@@ -39,8 +55,16 @@ import { SendComponent } from './send/send.component';
     TradeComponent,
     WalletComponent,
     AddwalletComponent,
+    SendComponent,
     CoinTestPipe,
-    SendComponent
+    FilterPipe,
+    CoinFilterPipe,
+    CoinTestFilterPipe,
+    FocusDirective,
+    SettingsComponent,
+    ManageAccountComponent,
+    DeleteComponent,
+    PasswordComponent,
   ],
   imports: [
     BrowserModule,
@@ -66,14 +90,18 @@ import { SendComponent } from './send/send.component';
     MatProgressSpinnerModule,
     MatDialogModule,
     MatSnackBarModule,
+    MatSlideToggleModule,
+    MatSliderModule, 
+
+    ChartModule.forRoot(require('highcharts/highstock')),
 
     LocalStorageModule.withConfig({
       prefix: 'auradex',
       storageType: 'localStorage'
     })
   ],
-  providers: [ CoinService, UserService ],
-  entryComponents: [ AddwalletComponent  ],
+  providers: [ CoinService, UserService, WebsocketService, NodeService, CryptoService ],
+  entryComponents: [ AddwalletComponent, SendComponent, DeleteComponent, PasswordComponent ],
   bootstrap: [ AppComponent ]
 })
 export class AppModule { }

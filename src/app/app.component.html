@@ -1,7 +1,9 @@
-<mat-toolbar fxLayout fxLayout.xs="column" fxLayoutAlign="start center" fxLayoutGap="10px" fxLayoutGap.xs="0" >
+<mat-toolbar fxLayout fxLayout.xs="column" fxLayoutAlign="space-between center" fxLayoutGap="10px" fxLayoutGap.xs="0" >
   <a routerLink="/"><img src="assets/auradex200.png" alt="AURADEX" class="brand" /></a>
   <a routerLink="/trade" routerLinkActive="active">Trade</a>
-  <a routerLink="/wallet" routerLinkActive="active">View Wallet</a>
+  <a routerLink="/wallet" routerLinkActive="active">Accounts</a>
+  <a routerLink="/manage" routerLinkActive="active">Settings</a>
+  <span fxFlex>&nbsp;</span>
 </mat-toolbar>
 
 <router-outlet> </router-outlet>

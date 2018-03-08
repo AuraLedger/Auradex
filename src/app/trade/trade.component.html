@@ -2,38 +2,36 @@
   <div fxLayout="column">
     <mat-list>
       <mat-list-item>Markets</mat-list-item>  
-      <mat-list-item *ngFor="let mark of markets" (click)="goTo(mark)" class="mat-elevation-z2 clickable">
-        <img matListAvatar src="assets/coins/{{mark.coin}}.png" alt="{{mark.coin}}">
-        <h3 matLine> {{mark.coin}}/{{mark.base}} </h3>
+      <mat-list-item *ngFor="let mark of markets" (click)="selectMarket(mark)" class="mat-elevation-z2 clickable">
+        <img matListAvatar src="assets/coins/{{mark.coin.ticker}}.png" alt="{{mark.coin.ticker}}">
+        <h3 matLine> {{mark.coin.ticker}}/{{mark.base.ticker}} </h3>
         <p matLine> {{mark.price}} ({{mark.change | percent}}) </p>
       </mat-list-item>
     </mat-list> 
   </div>
   <div fxFlex fxLayout="column" fxLayoutAlign="start stretch" class="center-panel">
-    <div #chartTarget>
-      chart target
-    </div>
+    <chart type="StockChart" [options]="options"></chart>
     <div fxLayout.gt-sm="row" fxLayout="column">
       <mat-accordion fxFlex="50" [multi]="true">
         <mat-expansion-panel [expanded]="isSellPanelOpen">
           <mat-expansion-panel-header>
             <mat-panel-title>
-              Sell {{market.coinName}} ({{market.coin}})
+              Sell {{market.coin.name}} ({{market.coin.ticker}})
             </mat-panel-title>
             <mat-panel-description>
-              {{market.coinName}} Balance: {{market.coinBalance}} {{market.coin}}
+              {{market.coin.name}} Balance: {{coinBalance}} ({{market.coin.ticker}})
             </mat-panel-description>
           </mat-expansion-panel-header>
 
           <mat-form-field>
-            <input matInput placeholder="Amount">
+            <input matInput placeholder="Amount" [(ngModel)]="bidAmount">
           </mat-form-field>
 
           <mat-form-field>
-            <input matInput placeholder="Price">
+            <input matInput placeholder="Price" [(ngModel)]="bidPrice">
           </mat-form-field>
 
-          <button mat-raised-button color="primary">Place Order</button>
+          <button mat-raised-button color="accent" (click)="placeBid()">Place Order</button>
 
         </mat-expansion-panel>
 
@@ -50,31 +48,42 @@
             </mat-panel-description>
           </mat-expansion-panel-header>
 
+          <mat-list>
+            <mat-list-item *ngIf="market.bid.array.length == 0">No bids.</mat-list-item>
+            <mat-list-item *ngFor="let bid of market.bid.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidbox">
+              <div (click)="fillSum(bid)">{{bid.sum | number: 8}}</div>
+              <div (click)="fillBoth(bid)">{{bid.total | number: 8}}</div>
+              <div (click)="fillAmount(bid.amount)">{{bid.amount | number: 8}}</div>
+              <div (click)="fillPrice(bid.price)">{{bid.price | number: 8}}</div>
+            </mat-list-item>
+          </mat-list> 
+
+          <!--
           <mat-table #table [dataSource]="dataSource">
 
             <ng-container matColumnDef="sum">
-              <mat-header-cell *matHeaderCellDef> Sum ({{market.base}}) </mat-header-cell>
+              <mat-header-cell *matHeaderCellDef> Sum ({{market.base.ticker}}) </mat-header-cell>
               <mat-cell *matCellDef="let element"> {{element.sum}} </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="total">
-              <mat-header-cell *matHeaderCellDef> Total ({{market.base}})</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef> Total ({{market.base.ticker}})</mat-header-cell>
               <mat-cell *matCellDef="let element"> {{element.total}} </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="amount">
-              <mat-header-cell *matHeaderCellDef> Amount ({{market.coin}})</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef> Amount ({{market.coin.ticker}})</mat-header-cell>
               <mat-cell *matCellDef="let element"> {{element.amount}} </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="price">
-              <mat-header-cell *matHeaderCellDef> Price ({{market.base}})</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef> Price ({{market.base.ticker}})</mat-header-cell>
               <mat-cell *matCellDef="let element"> {{element.price}} </mat-cell>
             </ng-container>
 
             <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
             <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
-          </mat-table>
+          </mat-table> -->
         </mat-expansion-panel>
 
       </mat-accordion>
@@ -83,10 +92,10 @@
         <mat-expansion-panel [expanded]="isBuyPanelOpen">
           <mat-expansion-panel-header>
             <mat-panel-title>
-              Buy {{market.coinName}} ({{market.coin}}) 
+              Buy {{market.coin.name}} ({{market.coin.ticker}}) 
             </mat-panel-title>
             <mat-panel-description>
-              {{market.baseName}} Balance: {{market.baseBalance}} {{market.base}}
+              {{market.base.name}} Balance: {{baseBalance}} {{market.base.ticker}}
             </mat-panel-description>
           </mat-expansion-panel-header>
 
@@ -97,7 +106,7 @@
           <mat-form-field>
             <input matInput placeholder="Price">
           </mat-form-field>
-          <button mat-raised-button color="accent">Place Order</button>
+          <button mat-raised-button color="primary">Place Order</button>
         </mat-expansion-panel>
         <mat-expansion-panel [expanded]="isAskPanelOpen">
           <mat-expansion-panel-header>
@@ -115,22 +124,22 @@
           <mat-table #table [dataSource]="dataSource">
 
             <ng-container matColumnDef="sum">
-              <mat-header-cell *matHeaderCellDef> Sum ({{market.base}}) </mat-header-cell>
+              <mat-header-cell *matHeaderCellDef> Sum ({{market.base.name}}) </mat-header-cell>
               <mat-cell *matCellDef="let element"> {{element.sum}} </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="total">
-              <mat-header-cell *matHeaderCellDef> Total ({{market.base}})</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef> Total ({{market.base.name}})</mat-header-cell>
               <mat-cell *matCellDef="let element"> {{element.total}} </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="amount">
-              <mat-header-cell *matHeaderCellDef> Amount ({{market.coin}})</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef> Amount ({{market.coin.name}})</mat-header-cell>
               <mat-cell *matCellDef="let element"> {{element.amount}} </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="price">
-              <mat-header-cell *matHeaderCellDef> Price ({{market.base}})</mat-header-cell>
+              <mat-header-cell *matHeaderCellDef> Price ({{market.base.name}})</mat-header-cell>
               <mat-cell *matCellDef="let element"> {{element.price}} </mat-cell>
             </ng-container>
 
@@ -140,15 +149,12 @@
         </mat-expansion-panel>
       </mat-accordion>
     </div>
-  </div>
-
-  <div></div>
-
-  <div>
-    <mat-list>
-      <mat-list-item>Recent Trades</mat-list-item>  
-      <mat-list-item *ngFor="let trade of trades">
-      </mat-list-item>
-    </mat-list>
+    <div>
+      <mat-list>
+        <mat-list-item>Recent Trades</mat-list-item>  
+        <mat-list-item *ngFor="let trade of trades">
+        </mat-list-item>
+      </mat-list>
+    </div>
   </div>
 </div>

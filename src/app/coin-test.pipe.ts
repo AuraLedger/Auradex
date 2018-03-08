@@ -13,7 +13,7 @@ export class CoinTestPipe implements PipeTransform {
     if(this.userService.getSettings().useTestCoins)
       return value;
     else
-      return value.filter(v => !v.test);
+      return value.filter(v => { return !v.test; });
   }
 
 }
