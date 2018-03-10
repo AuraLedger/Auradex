@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Market } from './market';
 import { UserService } from './user.service';
-import { EntryMessage, NonceMessage, DexUtils } from './lib/libauradex';
+import { EntryMessage, NonceMessage, DexUtils, CancelMessage } from './lib/libauradex';
 
 @Injectable()
 export class WebsocketService {
@@ -25,6 +25,7 @@ export class WebsocketService {
                     case 'nonce': that.nonce(json, market); break; 
                     case 'trade': market.addTrade(json); break; 
                     case 'register': that.register(json, ws, market); break;
+                    case 'cancel': that.cancel(json, market); break;
 
                     case 'setFeeRates': that.setFeeRates(json, market); break;
                     case 'err': that.userService.showError(json.err); break;
@@ -34,6 +35,23 @@ export class WebsocketService {
             if(cb)
                 cb(ws);
         }
+    }
+
+    cancel(obj: CancelMessage, market) {
+        if(obj.entryType == 'bid')
+        {
+            var entry = DexUtils.removeFromBook(market.bids, obj);  
+            market.base.subBookBalance(entry.address, entry.price * entry.amount + market.base.node.getInitFee());
+            market.coin.subBookBalance(entry.redeemAddress, market.coin.node.getRedeemFee());
+        }
+        else if (obj.entryType == 'ask')
+        {
+            var entry = DexUtils.removeFromBook(market.asks, obj);  
+            market.coin.subBookBalance(entry.address, entry.amount + market.coin.node.getInitFee());
+            market.base.subBookBalance(entry.redeemAddress, market.base.node.getRedeemFee());
+        }
+        else
+            this.userService.showError("Unknown cancel entry type: " + obj.entryType);
     }
 
     setFeeRates(obj, market) {

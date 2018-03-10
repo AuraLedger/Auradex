@@ -239,11 +239,11 @@
 
         <div fxLayout="column">
           <div fxLayout="row" fxLayoutAlign="space-between center" class="bidheader">
-            <div fxFlex="10" style="text-align: center">Type</div>
-            <div fxFlex="18">Amount {{market.coin.ticker}}</div>
-            <div fxFlex="18">Price {{market.base.ticker}}</div>
-            <div fxFlex="18">Size {{market.base.ticker}}</div>
-            <div fxFlex="26" style="text-align: center">Time</div>
+            <div fxFlex="10" class="clickable" (click)="market.mySort('act')" style="text-align: center">Type</div>
+            <div fxFlex="18" class="clickable" (click)="market.mySort('amount')">Amount {{market.coin.ticker}}</div>
+            <div fxFlex="18" class="clickable" (click)="market.mySort('price')">Price {{market.base.ticker}}</div>
+            <div fxFlex="18" class="clickable" (click)="market.mySort('size')">Size {{market.base.ticker}}</div>
+            <div fxFlex="26" class="clickable" (click)="market.mySort('timestamp')" style="text-align: center">Time</div>
             <div fxFlex="10">Cancel</div>
           </div>
 

@@ -27,6 +27,9 @@ export class Market {
     price: number;
     change: number;
 
+    mySortProperty: string = 'timestamp';
+    mySortDir: boolean = false;
+
     constructor(
         readonly config: MarketConfig, 
         public coin: Coin, 
@@ -38,8 +41,34 @@ export class Market {
 
     addMine(entry: EntryMessage): void {
         this.mine.push(entry);
+        this.sortMyList();
     }
-    
+
+    sortMyList() {
+        var that = this;
+        if(this.mySortProperty == 'size')
+            this.mine.sort((a,b) => { return (a.amount * a.price - b.amount * b.price) * (that.mySortDir ? -1: 1); });
+        else {
+            this.mine.sort((a, b) => {
+                var result = 0;
+                if(a[that.mySortProperty] > b[that.mySortProperty])
+                    result = 1;
+                else if (b[that.mySortProperty] > a[that.mySortProperty])
+                    result = -1;
+                if(that.mySortDir)
+                    result = result * -1;
+                return result;
+            });
+        }
+    }
+
+    mySort(prop: string) {
+        if(prop == this.mySortProperty)
+            this.mySortDir = !this.mySortDir;
+        else
+            this.mySortProperty = prop;
+        this.sortMyList();
+    }
 
     setAvailableBalances(coinAddress: string, baseAddress: string) {
         var cb = this.coin.getBookBalance(coinAddress);
