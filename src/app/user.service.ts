@@ -6,6 +6,7 @@ import * as CryptoJS from 'crypto-js';
 import { CryptoService } from './crypto.service'
 import { CoinService } from './coin.service'
 import { PasswordComponent } from './password/password.component'
+import { AreYouSureComponent } from './are-you-sure/are-you-sure.component';
 
 @Injectable()
 export class UserService {
@@ -138,6 +139,21 @@ export class UserService {
             this.getPrivateKey(coin, cb, trade);
         }
 
+    }
+
+    public areYouSure(title, msg, cb) {
+        title = title || "Are you sure?";
+        let dialogRef = this.dialog.open(AreYouSureComponent, {
+            data: {
+                title: title,
+                msg: msg
+            }
+        });
+
+        dialogRef.afterClosed().subscribe(result => {
+            if(result)
+                cb();
+        });   
     }
 
     public getPrivateKey(coin, cb, trade?) {

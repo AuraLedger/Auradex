@@ -2,7 +2,7 @@
   <div fxLayout="column">
     <mat-list>
       <mat-list-item>Markets</mat-list-item>  
-      <mat-list-item *ngFor="let mark of markets" routerLink="/trade/{{mark.coin.ticker}}-{{mark.base.ticker}}"  class="mat-elevation-z2 clickable">
+      <mat-list-item *ngFor="let mark of markets" routerLink="/trade/{{mark.coin.ticker}}-{{mark.base.ticker}}"  class="mat-elevation-z2 clickable" [ngClass]="mark == market ? 'selected' : ''">
         <img matListAvatar src="assets/coins/{{mark.coin.ticker}}.png" alt="{{mark.coin.ticker}}">
         <h3 matLine> {{mark.coin.ticker}}/{{mark.base.ticker}} </h3>
         <p matLine> {{mark.price}} ({{mark.change | percent}}) </p>
@@ -215,7 +215,7 @@
 
           <div *ngIf="market.mine.length == 0">No Orders.</div>
 
-          <div *ngFor="let bid of market.mine" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+          <div *ngFor="let bid of market.recentTrades" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
             <div fxFlex="10" style="text-align: center">{{bid.act == 'bid' ? 'Buy' : 'Sell'}}</div>
             <div fxFlex="18">{{bid.amount | number: '1.8-8'}}</div>
             <div fxFlex="18">{{bid.price | number: '1.8-8'}}</div>

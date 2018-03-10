@@ -86,7 +86,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     cancel(bid: EntryMessage): void {
         var that = this;
-        this.userService.areYouSure(function() {
+        this.userService.areYouSure('Cancel', 'Are you sure?', function() {
             that.websocketService.getSocket(that.market, function(ws) {
                 var cancelMessage: CancelMessage = {
                     act: 'cancel',

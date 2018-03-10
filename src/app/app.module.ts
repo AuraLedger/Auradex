@@ -47,6 +47,7 @@ import { SettingsComponent } from './settings/settings.component';
 import { ManageAccountComponent } from './manage-account/manage-account.component';
 import { DeleteComponent } from './delete/delete.component';
 import { PasswordComponent } from './password/password.component';
+import { AreYouSureComponent } from './are-you-sure/are-you-sure.component';
 
 declare var require: any
 
@@ -66,6 +67,7 @@ declare var require: any
         ManageAccountComponent,
         DeleteComponent,
         PasswordComponent,
+        AreYouSureComponent,
     ],
     imports: [
         BrowserModule,
@@ -103,7 +105,7 @@ declare var require: any
         })
     ],
     providers: [ CoinService, UserService, WebsocketService, NodeService, CryptoService ],
-    entryComponents: [ AddwalletComponent, SendComponent, DeleteComponent, PasswordComponent ],
+    entryComponents: [ AddwalletComponent, SendComponent, DeleteComponent, PasswordComponent, AreYouSureComponent ],
     bootstrap: [ AppComponent ]
 })
 export class AppModule { }
