@@ -12,6 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatCardModule } from '@angular/material/card';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTableModule } from '@angular/material/table';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -50,58 +51,59 @@ import { PasswordComponent } from './password/password.component';
 declare var require: any
 
 @NgModule({
-  declarations: [
-    AppComponent,
-    TradeComponent,
-    WalletComponent,
-    AddwalletComponent,
-    SendComponent,
-    CoinTestPipe,
-    FilterPipe,
-    CoinFilterPipe,
-    CoinTestFilterPipe,
-    FocusDirective,
-    SettingsComponent,
-    ManageAccountComponent,
-    DeleteComponent,
-    PasswordComponent,
-  ],
-  imports: [
-    BrowserModule,
-    BrowserAnimationsModule,
-    FormsModule,
+    declarations: [
+        AppComponent,
+        TradeComponent,
+        WalletComponent,
+        AddwalletComponent,
+        SendComponent,
+        CoinTestPipe,
+        FilterPipe,
+        CoinFilterPipe,
+        CoinTestFilterPipe,
+        FocusDirective,
+        SettingsComponent,
+        ManageAccountComponent,
+        DeleteComponent,
+        PasswordComponent,
+    ],
+    imports: [
+        BrowserModule,
+        BrowserAnimationsModule,
+        FormsModule,
 
-    AppRoutingModule,
-    FlexLayoutModule,
+        AppRoutingModule,
+        FlexLayoutModule,
 
-    MatButtonModule, 
-    MatSidenavModule,
-    MatToolbarModule,
-    MatCheckboxModule,
-    MatInputModule,
-    MatIconModule,
-    MatFormFieldModule,
-    MatListModule,
-    MatExpansionModule,
-    MatCardModule,
-    MatChipsModule, 
-    MatTableModule,
-    MatDividerModule, 
-    MatProgressSpinnerModule,
-    MatDialogModule,
-    MatSnackBarModule,
-    MatSlideToggleModule,
-    MatSliderModule, 
+        MatButtonModule, 
+        MatSidenavModule,
+        MatToolbarModule,
+        MatCheckboxModule,
+        MatInputModule,
+        MatIconModule,
+        MatFormFieldModule,
+        MatListModule,
+        MatExpansionModule,
+        MatCardModule,
+        MatChipsModule, 
+        MatTableModule,
+        MatDividerModule, 
+        MatProgressSpinnerModule,
+        MatDialogModule,
+        MatSnackBarModule,
+        MatSlideToggleModule,
+        MatSliderModule, 
+        MatTooltipModule,
 
-    ChartModule.forRoot(require('highcharts/highstock')),
+        ChartModule.forRoot(require('highcharts/highstock')),
 
-    LocalStorageModule.withConfig({
-      prefix: 'auradex',
-      storageType: 'localStorage'
-    })
-  ],
-  providers: [ CoinService, UserService, WebsocketService, NodeService, CryptoService ],
-  entryComponents: [ AddwalletComponent, SendComponent, DeleteComponent, PasswordComponent ],
-  bootstrap: [ AppComponent ]
+        LocalStorageModule.withConfig({
+            prefix: 'auradex',
+            storageType: 'localStorage'
+        })
+    ],
+    providers: [ CoinService, UserService, WebsocketService, NodeService, CryptoService ],
+    entryComponents: [ AddwalletComponent, SendComponent, DeleteComponent, PasswordComponent ],
+    bootstrap: [ AppComponent ]
 })
 export class AppModule { }

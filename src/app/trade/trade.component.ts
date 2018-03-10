@@ -3,6 +3,7 @@ import { MatTableDataSource } from '@angular/material';
 import { Router, ActivatedRoute } from '@angular/router';
 import * as Highcharts from 'highcharts/highstock';
 import { ChartModule } from 'angular2-highcharts'; 
+import { LocalStorageService } from 'angular-2-local-storage';
 
 import { UserService } from '../user.service';
 import { CoinService } from '../coin.service';
@@ -41,6 +42,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
     askMin: number;
     askMinPercent: number;
 
+    minToolTip = "Set the minimum amount you are willing to trade, in case someone wants to swap for less than your total.";
+
     //chart
     ohlc;
     volume;
@@ -68,6 +71,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
     constructor(
         private route: ActivatedRoute, 
         private router: Router,
+        private localStorageService: LocalStorageService, 
         public coinService: CoinService, 
         public userService: UserService,
         public websocketService: WebsocketService
@@ -81,42 +85,167 @@ export class TradeComponent implements OnInit, AfterViewInit {
             this.markets.push(this.coinService.marketd[mKeys[i]]);
     }
 
+    selectMarket(mark) {
+        this.market = mark;
+        this.initMarket();
+    } 
+
+    setAskMinPercent(val) {
+        val = Number(val.toFixed(0));
+        this.askMinPercent = val;
+        this.localStorageService.set(this.market.coin.name + 'askMinPercent', val);
+    }
+
+    askMinChanged(val) {
+        if(!val) return;
+        if(val > this.askAmount)
+            val = this.askAmount;
+        if(val < 0)
+            val = 0;
+        val = Number(val.toFixed(8));
+        this.askMin = val;
+        this.setAskMinPercent(this.askMin * 100 / this.askAmount);
+    }
+
+    calcAskMin() {
+        this.askMin = this.askAmount * this.askMinPercent / 100;
+        this.askMin = Number(this.askMin.toFixed(8));
+    }
+
+    askMinPercentChanged(val) {
+        if(!val) return;
+        if(val > 100)
+            val = 100;
+        if(val < 0)
+            val = 0;
+        this.setAskMinPercent(val);
+        this.calcAskMin();
+    }
+
+    askAmountChanged(val) {
+        if(!val) return;
+        if(val > this.coinBalance - this.market.coin.node.getInitFee())
+            val = this.coinBalance - this.market.coin.node.getInitFee();
+        if(val < 0)
+            val = 0;
+        this.askAmount = val;
+        this.calcAskMin();
+    }
+
+    validateAskInputs(): string {
+        if(this.askAmount > this.coinBalance)
+            return 'Not enough funds.';
+        if(this.askMin > this.askAmount)
+            return 'Min cannot be greater than amount';
+        return null;
+    }
+
+    setBidMinPercent(val) {
+        val = Number(val.toFixed(0));
+        this.bidMinPercent = val;
+        this.localStorageService.set(this.market.coin.name + 'bidMinPercent', val);
+    }
+
+    bidMinChanged(val) {
+        if(!val) return;
+        if(val > this.bidAmount)
+            val = this.bidAmount;
+        if(val < 0)
+            val = 0;
+        val = Number(val.toFixed(8));
+        this.bidMin = val;
+        this.setAskMinPercent(this.bidMin * 100 / this.bidAmount);
+    }
+
+    calcBidMin() {
+        this.bidMin = this.bidAmount * this.bidMinPercent / 100;
+        this.bidMin = Number(this.bidMin.toFixed(8));
+    }
+
+    bidMinPercentChanged(val) {
+        if(!val) return;
+        if(val > 100)
+            val = 100;
+        if(val < 0)
+            val = 0;
+        this.setAskMinPercent(val);
+        this.calcAskMin();
+    }
+
+    bidAmountChanged(val) {
+        if(!val) return;
+        if(val > this.coinBalance - this.market.coin.node.getInitFee())
+            val = this.coinBalance - this.market.coin.node.getInitFee();
+        if(val < 0)
+            val = 0;
+        this.bidAmount = val;
+        this.calcAskMin();
+    }
+
+    validateBidInputs(): string {
+        if(this.bidAmount > this.coinBalance)
+            return 'Not enough funds.';
+        if(this.bidMin > this.bidAmount)
+            return 'Min cannot be greater than amount';
+        return null;
+    }
+
+
+
+    //TODO: compute sums when bid/ask is added to market
     placeBid() {
+        if(this.bidAmount * this.bidPrice > this.baseBalance - this.market.base.node.getInitFee())
+            this.bidAmount = (this.baseBalance - this.market.base.node.getInitFee()) / this.bidPrice;
+
         var bid = {
             act: 'bid',
             price: this.bidPrice,
             amount: this.bidAmount,
             address: this.userService.getAccount()[this.market.base.name].address,
+            redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
             min: this.bidMin,
-            nonce: this.market.base.nextNonce(this.userService.activeAccount),
-            sig: ''
+            nonce: this.market.base.getNonce(this.userService.activeAccount),
         };
         this.sendEntry(bid, this.market.base, this.baseBalance);    
     }
 
     placeAsk() {
+        if(this.askAmount * this.askPrice > this.coinBalance - this.market.coin.node.getInitFee())
+            this.askAmount = (this.coinBalance - this.market.coin.node.getInitFee()) / this.askPrice;
+
         var ask = {
             act: 'ask',
             price: this.askPrice,
             amount: this.askAmount,
             address: this.userService.getAccount()[this.market.coin.name].address,
+            redeemAddress: this.userService.getAccount()[this.market.base.name].address,
             min: this.askMin,
-            nonce: this.market.coin.nextNonce(this.userService.activeAccount),
+            nonce: this.market.coin.getNonce(this.userService.activeAccount),
         };
         this.sendEntry(ask, this.market.coin, this.coinBalance);    
     }
 
     private sendEntry(entry: EntryMessage, coin: Coin, bal: number) {
-        var msg = JSON.stringify(entry);
+        var msg = DexUtils.getSigMessage(entry); 
         var that = this;
-        this.userService.getPrivateKey(this.market.base.name, function(key) {
+        this.userService.getPrivateKey(coin.name, function(key) {
             var sig = coin.node.signMessage(msg, key);
             entry.sig = sig;
 
-            DexUtils.verifyEntryFull(entry, coin.node, bal, coin.fee, function() {
+            DexUtils.verifyEntryFull(entry, coin.node, bal, function() {
 
-                that.websocketService.getSocket(that.market, function(ws) {
-                    ws.send(JSON.stringify(entry));
+                DexUtils.verifyRedeemBalanceFull(coin.node, bal, function() {
+
+                    that.websocketService.getSocket(that.market, function(ws) {
+                        ws.send(JSON.stringify(entry));
+                        if(entry.act == 'bid')
+                            that.bidAmount = 0;
+                        else
+                            that.askAmount = 0;
+                        that.userService.showSuccess("Order has been placed, it may take a few seconds to show in the list");
+                    });
+                }, function(err) {
+                    that.userService.showError(err);
                 });
             }, function(err) {
                 that.userService.showError(err);
@@ -176,6 +305,16 @@ export class TradeComponent implements OnInit, AfterViewInit {
         this.websocketService.connect(this.market);
     }
 
+    initMarket() {
+        var that = this;
+        this.userService.getBalance(this.market.coin.name, function(b) { that.coinBalance = b; });
+        this.userService.getBalance(this.market.base.name, function(b) { that.baseBalance = b; });
+        this.initWebsockets();
+
+        this.askMinPercent = Number(this.localStorageService.get(this.market.coin.name + 'askMinPercent') || 50);
+        this.bidMinPercent = Number(this.localStorageService.get(this.market.base.name + 'bidMinPercent') || 50);
+    }
+
     ngOnInit() {
         this.sub = this.route.params.subscribe(params => {
             var key: string;
@@ -184,40 +323,11 @@ export class TradeComponent implements OnInit, AfterViewInit {
             }
             if(this.coinService.marketd.hasOwnProperty(key)) {
                 this.market = this.coinService.marketd[key];
-                var that = this;
-                this.userService.getBalance(this.market.coin.name, function(b) { that.coinBalance = b; });
-                this.userService.getBalance(this.market.base.name, function(b) { that.baseBalance = b; });
-                this.initWebsockets();
+                this.initMarket();    
             }
             else
                 this.router.navigate(['/trade', 'ARA-ETH']);
         });
-
-        /*
-    const options: Highcharts.Options = {
-      chart: {
-        type: 'bar'
-      },
-      title: {
-        text: 'Fruit Consumption'
-      },
-      xAxis: {
-        categories: ['Apples', 'Bananas', 'Oranges']
-      },
-      yAxis: {
-        title: {
-          text: 'Fruit eaten'
-        }
-      },
-      series: [{
-        name: 'Jane',
-        data: [1, 0, 4]
-      }, {
-        name: 'John',
-        data: [5, 7, 3]
-      }]
-    };
-    i*/
 
         this.options = {
 

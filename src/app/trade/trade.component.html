@@ -2,7 +2,7 @@
   <div fxLayout="column">
     <mat-list>
       <mat-list-item>Markets</mat-list-item>  
-      <mat-list-item *ngFor="let mark of markets" (click)="selectMarket(mark)" class="mat-elevation-z2 clickable">
+      <mat-list-item *ngFor="let mark of markets" routerLink="/trade/{{mark.coin.ticker}}-{{mark.base.ticker}}"  class="mat-elevation-z2 clickable">
         <img matListAvatar src="assets/coins/{{mark.coin.ticker}}.png" alt="{{mark.coin.ticker}}">
         <h3 matLine> {{mark.coin.ticker}}/{{mark.base.ticker}} </h3>
         <p matLine> {{mark.price}} ({{mark.change | percent}}) </p>
@@ -23,15 +23,28 @@
             </mat-panel-description>
           </mat-expansion-panel-header>
 
-          <mat-form-field>
-            <input matInput placeholder="Amount" [(ngModel)]="bidAmount">
-          </mat-form-field>
+          <div>
+            <mat-form-field>
+              <input matInput type="number" placeholder="Amount" [ngModel]="askAmount" (ngModelChange)="askAmountChanged($event)">
+            </mat-form-field>
 
-          <mat-form-field>
-            <input matInput placeholder="Price" [(ngModel)]="bidPrice">
-          </mat-form-field>
+            <mat-form-field>
+              <input matInput type="number" placeholder="Price" [(ngModel)]="askPrice">
+            </mat-form-field>
 
-          <button mat-raised-button color="accent" (click)="placeBid()">Place Order</button>
+            <button mat-raised-button color="accent" (click)="placeAsk()" [disabled]="validateAskInputs()">Place Order</button>
+          </div>
+          <div>
+
+            <mat-form-field>
+              <input matInput type="number" placeholder="Min" [matTooltip]="minToolTip" [ngModel]="askMin" (ngModelChange)="askMinChanged($event)">
+            </mat-form-field>
+
+            <mat-form-field>
+              <input matInput type="number" placeholder="Min %" [matTooltip]="minToolTip" [ngModel]="askMinPercent" (ngModelChange)="askMinPercentChanged($event)">
+            </mat-form-field>
+
+          </div>
 
         </mat-expansion-panel>
 
@@ -51,39 +64,12 @@
           <mat-list>
             <mat-list-item *ngIf="market.bid.array.length == 0">No bids.</mat-list-item>
             <mat-list-item *ngFor="let bid of market.bid.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidbox">
-              <div (click)="fillSum(bid)">{{bid.sum | number: 8}}</div>
-              <div (click)="fillBoth(bid)">{{bid.total | number: 8}}</div>
-              <div (click)="fillAmount(bid.amount)">{{bid.amount | number: 8}}</div>
-              <div (click)="fillPrice(bid.price)">{{bid.price | number: 8}}</div>
+              <div (click)="fillSum(bid)">{{bid.sum | number: '1.8-8'}}</div>
+              <div (click)="fillBoth(bid)">{{(bid.amount * bid.price) | number: '1.8-8'}}</div>
+              <div (click)="fillAmount(bid.amount)">{{bid.amount | number: '1.8-8'}}</div>
+              <div (click)="fillPrice(bid.price)">{{bid.price | number: '1.8-8'}}</div>
             </mat-list-item>
           </mat-list> 
-
-          <!--
-          <mat-table #table [dataSource]="dataSource">
-
-            <ng-container matColumnDef="sum">
-              <mat-header-cell *matHeaderCellDef> Sum ({{market.base.ticker}}) </mat-header-cell>
-              <mat-cell *matCellDef="let element"> {{element.sum}} </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="total">
-              <mat-header-cell *matHeaderCellDef> Total ({{market.base.ticker}})</mat-header-cell>
-              <mat-cell *matCellDef="let element"> {{element.total}} </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="amount">
-              <mat-header-cell *matHeaderCellDef> Amount ({{market.coin.ticker}})</mat-header-cell>
-              <mat-cell *matCellDef="let element"> {{element.amount}} </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="price">
-              <mat-header-cell *matHeaderCellDef> Price ({{market.base.ticker}})</mat-header-cell>
-              <mat-cell *matCellDef="let element"> {{element.price}} </mat-cell>
-            </ng-container>
-
-            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
-          </mat-table> -->
         </mat-expansion-panel>
 
       </mat-accordion>
@@ -99,13 +85,30 @@
             </mat-panel-description>
           </mat-expansion-panel-header>
 
-          <mat-form-field>
-            <input matInput placeholder="Amount">
-          </mat-form-field>
 
-          <mat-form-field>
-            <input matInput placeholder="Price">
-          </mat-form-field>
+          <div>
+            <mat-form-field>
+              <input matInput type="number" placeholder="Amount" [ngModel]="bidAmount" (ngModelChange)="bidAmountChanged($event)">
+            </mat-form-field>
+
+            <mat-form-field>
+              <input matInput type="number" placeholder="Price" [(ngModel)]="bidPrice">
+            </mat-form-field>
+
+            <button mat-raised-button color="accent" (click)="placeAsk()" [disabled]="validateBidInputs()">Place Order</button>
+          </div>
+          <div>
+
+            <mat-form-field>
+              <input matInput type="number" placeholder="Min" [matTooltip]="minToolTip" [ngModel]="bidMin" (ngModelChange)="bidMinChanged($event)">
+            </mat-form-field>
+
+            <mat-form-field>
+              <input matInput type="number" placeholder="Min %" [matTooltip]="minToolTip" [ngModel]="bidMinPercent" (ngModelChange)="bidMinPercentChanged($event)">
+            </mat-form-field>
+
+          </div>
+
           <button mat-raised-button color="primary">Place Order</button>
         </mat-expansion-panel>
         <mat-expansion-panel [expanded]="isAskPanelOpen">
@@ -121,31 +124,24 @@
             </mat-panel-description>
           </mat-expansion-panel-header>
 
-          <mat-table #table [dataSource]="dataSource">
+          <div fxLayout="column">
 
-            <ng-container matColumnDef="sum">
-              <mat-header-cell *matHeaderCellDef> Sum ({{market.base.name}}) </mat-header-cell>
-              <mat-cell *matCellDef="let element"> {{element.sum}} </mat-cell>
-            </ng-container>
+            <div fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+              <div fxFlex="25">Price {{market.base.ticker}}</div>
+              <div fxFlex="25">Amount {{market.coin.ticker}}</div>
+              <div fxFlex="25">Size {{market.base.ticker}}</div>
+              <div fxFlex="25">Sum {{market.base.ticker}}</div>
+            </div>
 
-            <ng-container matColumnDef="total">
-              <mat-header-cell *matHeaderCellDef> Total ({{market.base.name}})</mat-header-cell>
-              <mat-cell *matCellDef="let element"> {{element.total}} </mat-cell>
-            </ng-container>
+            <div *ngIf="market.ask.array.length == 0">No asks.</div>
 
-            <ng-container matColumnDef="amount">
-              <mat-header-cell *matHeaderCellDef> Amount ({{market.coin.name}})</mat-header-cell>
-              <mat-cell *matCellDef="let element"> {{element.amount}} </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="price">
-              <mat-header-cell *matHeaderCellDef> Price ({{market.base.name}})</mat-header-cell>
-              <mat-cell *matCellDef="let element"> {{element.price}} </mat-cell>
-            </ng-container>
-
-            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
-          </mat-table>
+            <div *ngFor="let bid of market.ask.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+              <div fxFlex="25" (click)="fillSum(bid)">{{bid.sum | number: '1.8-8'}}</div>
+              <div fxFlex="25" (click)="fillTot(bid)">{{(bid.amount * bid.price) | number: '1.8-8'}}</div>
+              <div fxFlex="25" (click)="fillAmt(bid)">{{bid.amount | number: '1.8-8'}}</div>
+              <div fxFlex="25" (click)="fillPrc(bid)">{{bid.price | number: '1.8-8'}}</div>
+            </div>
+          </div> 
         </mat-expansion-panel>
       </mat-accordion>
     </div>

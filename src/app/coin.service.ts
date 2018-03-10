@@ -32,6 +32,12 @@ export class CoinService {
             base: 'Ethereum',
             //webSocketServerURL: 'wss://ara-eth.auradex.net',
             webSocketServerURL: 'ws://localhost:8999',
+        },
+        {
+            coin: 'Ropsten',
+            base: 'Rinkeby',
+            //webSocketServerURL: 'wss://rop-rnk.auradex.net',
+            webSocketServerURL: 'ws://localhost:8998',
         }
     ];
 

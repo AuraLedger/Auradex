@@ -1,10 +1,12 @@
 import { INode } from './INode';
 import { EtherConfig } from './NodeConfig';
 
-import Web3 from 'web3';
+declare var require: any
+const Web3 = require('web3');
 
 export class EtherNode implements INode {
     web3: any;
+    gasGwei: number = 20;
 
     constructor(config: EtherConfig) {
         this.web3 = new Web3(new Web3.providers.HttpProvider(config.rpcUrl));
@@ -33,34 +35,28 @@ export class EtherNode implements INode {
         return this.web3.eth.accounts.sign(msg, privateKey).signature;
     }
 
-    //TODO: find gasLimit for swap transacitons init
-    getFee(handler: (err: any, fee: number) => void): void {
-        var gasLimit = 200000;
-        var trans = [];
-        var that = this;
-        this.web3.eth.getBlockNumber(function(err, num) {
-            if(err)
-                handler(err, null);
-            else {
-                var getTrans = function() {
-                    //recursevely get blocks until we have 30 transacitons
-                    if(trans.length < 30) {
-                        that.web3.eth.getBlock(num, function(errr, block) {
-                            if (errr)
-                                handler(errr, null);
-                            else
-                            {
-                                trans.concat(block.transactions);
-                                num++;
-                                getTrans();
-                            }
-                        });
-                    } else {
-                        var gasPrice = trans.reduce((a,b) => { return a + b.gasPrice; }, 0) / trans.length;
-                        handler(null, that.web3.utils.fromGwei(gasPrice * gasLimit, 'ether'));
-                    }
-                }
-            }
-        });
+    //for ether based chains, this expect a gas price in gwei
+    setFeeRate(gwei: number): void {
+        this.gasGwei = gwei;
     }
+
+    private fromGwei(gwei: number) {
+        return Web3.utils.fromWei(Web3.utils.toWei(Web3.utils.toBN(gwei), 'gwei'), 'ether');
+    }
+
+    //TODO: find gasLimit for swap transacitons init
+    getInitFee(): number{
+        return this.fromGwei(this.gasGwei * 200000);
+    }
+
+    //TODO: find gas limit for swap redeem
+    getRedeemFee(): number {
+        return this.fromGwei(this.gasGwei * 150000);
+    }
+
+    //TODO:these
+    initSwap(){}
+    acceptSwap(){}
+    redeemSwap(){}
+    checkStatus() {}
 }

@@ -1,5 +1,4 @@
 import { Component } from '@angular/core';
-import { LocalStorageService } from 'angular-2-local-storage';
 import { MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material';
 import { AddwalletComponent } from '../addwallet/addwallet.component'
 import { SendComponent } from '../send/send.component'

@@ -7,25 +7,13 @@ export class Coin {
     balances: any = {};
     balanceTimes: any = {};
     nonces: any = {};
-    fee: number;
     node: INode;
 
     constructor(readonly config: CoinConfig) { 
         this.name = config.name;
         this.ticker = config.ticker ;
         this.test = config.test;
-        this.fee = Number(window.localStorage.getItem(config.name + 'fee'));
         this.node = NodeFactory.Create(config.node); 
-
-        var that = this;
-        this.node.getFee(function (err, fee) {
-            if(err)
-                throw err;
-            else {
-                that.fee = fee;
-                window.localStorage.setItem(that.name + 'fee', fee+'');
-            }
-        });
     }
 
     setBalance(accountName: string, balance: number) {
@@ -45,8 +33,7 @@ export class Coin {
         this.nonces[accountName] = nonce; 
     }
 
-    nextNonce(accountName: string) {
-        this.nonces[accountName] = this.nonces[accountName] + 1;
+    getNonce(accountName: string) {
         return this.nonces[accountName];
     }
 

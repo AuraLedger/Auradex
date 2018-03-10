@@ -11,6 +11,7 @@ export interface RegisterMessage extends MessageBase {
 
 export interface EntryMessage extends MessageBase {
     address: string; //address (coin for ask, base for bid),
+    redeemAddress: string; //address to receive coins of swap
     amount: number; //amount of coin buying/selling,
     price: number; //price in base,
     min: number; //minimum base amount to match this trade
@@ -27,4 +28,9 @@ export interface EntryMessage extends MessageBase {
 export interface NonceMessage extends MessageBase {
     entryType: string; //bid or ask
     val: number; //the nonce
+}
+
+export interface KeyValMessage extends MessageBase {
+    key: string;
+    val: string;
 }

@@ -34,12 +34,22 @@ export class Market {
         if(entry.act != 'bid')
             throw 'Tried to add non-bid entry ' + entry.act + ' to bid list'; 
         this.bid.insert(entry);
+        this.calcSum(this.bid.array);
     }
 
     addAsk(entry: EntryMessage) {
         if(entry.act != 'ask')
             throw 'Tried to add non-ask entry ' + entry.act + ' to ask list'; 
         this.ask.insert(entry);
+        this.calcSum(this.ask.array);
+    }
+
+    calcSum(entries: any[]): void {
+        var sum = 0;
+        for(var i = 0; i < entries.length; i++) {
+            sum = sum + (entries[i].price * entries[i].amount); 
+            entries[i].sum = sum;
+        }
     }
 }
 
