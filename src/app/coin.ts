@@ -6,6 +6,7 @@ export class Coin {
     test: boolean;
     balances: any = {};
     balanceTimes: any = {};
+    bookBalances: any = {};
     nonces: any = {};
     node: INode;
 
@@ -14,6 +15,18 @@ export class Coin {
         this.ticker = config.ticker ;
         this.test = config.test;
         this.node = NodeFactory.Create(config.node); 
+    }
+
+    getBookBalance(address: string): number {
+        return this.bookBalances[address] || 0;
+    }
+
+    addBookBalance(address: string, val: number): void {
+        this.bookBalances[address] = (this.bookBalances[address] || 0) + val;
+    }
+
+    subBookBalance(address: string, val: number): void {
+        this.bookBalances[address] = Math.max((this.bookBalances[address] || 0) - val, 0);
     }
 
     setBalance(accountName: string, balance: number) {

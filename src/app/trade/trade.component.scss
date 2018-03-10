@@ -1,3 +1,20 @@
 .center-panel {
   min-width: 0;
 }
+
+.bidrow {
+    text-align: right;
+}
+
+.bidrow > div > span {
+    cursor: pointer;
+}
+
+.bidheader {
+    font-weight: bold;
+    text-align: right;
+}
+
+.pad5 {
+    padding: 5px;
+}

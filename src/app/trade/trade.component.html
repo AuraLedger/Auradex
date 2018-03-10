@@ -12,14 +12,14 @@
   <div fxFlex fxLayout="column" fxLayoutAlign="start stretch" class="center-panel">
     <chart type="StockChart" [options]="options"></chart>
     <div fxLayout.gt-sm="row" fxLayout="column">
-      <mat-accordion fxFlex="50" [multi]="true">
+      <mat-accordion fxFlex="50" class="pad5">
         <mat-expansion-panel [expanded]="isSellPanelOpen">
           <mat-expansion-panel-header>
             <mat-panel-title>
               Sell {{market.coin.name}} ({{market.coin.ticker}})
             </mat-panel-title>
             <mat-panel-description>
-              {{market.coin.name}} Balance: {{coinBalance}} ({{market.coin.ticker}})
+              {{market.coin.name}} Balance: {{market.coinAvailable | number: '1.8-8'}} {{market.coin.ticker}}
             </mat-panel-description>
           </mat-expansion-panel-header>
 
@@ -47,41 +47,16 @@
           </div>
 
         </mat-expansion-panel>
-
-        <mat-expansion-panel [expanded]="isBidPanelOpen">
-          <mat-expansion-panel-header>
-            <mat-panel-title fxLayoutAlign="start center">
-              Bids&nbsp; 
-              <mat-chip-list>
-                <mat-chip>{{bids.length}}</mat-chip>
-              </mat-chip-list>
-            </mat-panel-title>
-            <mat-panel-description>
-              Total: {{totalBids}} {{market.base}} 
-            </mat-panel-description>
-          </mat-expansion-panel-header>
-
-          <mat-list>
-            <mat-list-item *ngIf="market.bid.array.length == 0">No bids.</mat-list-item>
-            <mat-list-item *ngFor="let bid of market.bid.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidbox">
-              <div (click)="fillSum(bid)">{{bid.sum | number: '1.8-8'}}</div>
-              <div (click)="fillBoth(bid)">{{(bid.amount * bid.price) | number: '1.8-8'}}</div>
-              <div (click)="fillAmount(bid.amount)">{{bid.amount | number: '1.8-8'}}</div>
-              <div (click)="fillPrice(bid.price)">{{bid.price | number: '1.8-8'}}</div>
-            </mat-list-item>
-          </mat-list> 
-        </mat-expansion-panel>
-
       </mat-accordion>
 
-      <mat-accordion fxFlex="50" [multi]="true">
+      <mat-accordion fxFlex="50" class="pad5">
         <mat-expansion-panel [expanded]="isBuyPanelOpen">
           <mat-expansion-panel-header>
             <mat-panel-title>
               Buy {{market.coin.name}} ({{market.coin.ticker}}) 
             </mat-panel-title>
             <mat-panel-description>
-              {{market.base.name}} Balance: {{baseBalance}} {{market.base.ticker}}
+              {{market.base.name}} Balance: {{market.baseAvailable | number: '1.8-8'}} {{market.base.ticker}}
             </mat-panel-description>
           </mat-expansion-panel-header>
 
@@ -95,7 +70,7 @@
               <input matInput type="number" placeholder="Price" [(ngModel)]="bidPrice">
             </mat-form-field>
 
-            <button mat-raised-button color="accent" (click)="placeAsk()" [disabled]="validateBidInputs()">Place Order</button>
+            <button mat-raised-button color="primary" class="pull-right" (click)="placeAsk()" [disabled]="validateBidInputs()">Place Order</button>
           </div>
           <div>
 
@@ -109,8 +84,46 @@
 
           </div>
 
-          <button mat-raised-button color="primary">Place Order</button>
         </mat-expansion-panel>
+      </mat-accordion>
+    </div>
+    <div fxLayout.gt-sm="row" fxLayout="column">
+      <mat-accordion fxFlex="50" class="pad5">
+        <mat-expansion-panel [expanded]="isBidPanelOpen">
+          <mat-expansion-panel-header>
+            <mat-panel-title fxLayoutAlign="start center">
+              Bids&nbsp; 
+              <mat-chip-list>
+                <mat-chip>{{bids.length}}</mat-chip>
+              </mat-chip-list>
+            </mat-panel-title>
+            <mat-panel-description>
+              Total: {{totalBids}} {{market.base}} 
+            </mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <div fxLayout="column">
+
+            <div fxLayout="row" fxLayoutAlign="space-between center" class="bidheader">
+              <div fxFlex="25">Sum {{market.base.ticker}}</div>
+              <div fxFlex="25">Size {{market.base.ticker}}</div>
+              <div fxFlex="25">Amount {{market.coin.ticker}}</div>
+              <div fxFlex="25">Price {{market.base.ticker}}</div>
+            </div>
+
+            <div *ngIf="market.bid.array.length == 0">No bids.</div>
+
+            <div *ngFor="let bid of market.bid.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+              <div fxFlex="25" (click)="fillSum(bid)"><span>{{bid.sum | number: '1.8-8'}}</span></div>
+              <div fxFlex="25" (click)="fillTot(bid)"><span>{{(bid.amount * bid.price) | number: '1.8-8'}}</span></div>
+              <div fxFlex="25" (click)="fillAmt(bid)"><span>{{bid.amount | number: '1.8-8'}}</span></div>
+              <div fxFlex="25" (click)="fillPrc(bid)"><span>{{bid.price | number: '1.8-8'}}</span></div>
+            </div>
+          </div> 
+        </mat-expansion-panel>
+      </mat-accordion>
+
+      <mat-accordion fxFlex="50" class="pad5">
         <mat-expansion-panel [expanded]="isAskPanelOpen">
           <mat-expansion-panel-header>
             <mat-panel-title fxLayoutAlign="start center">
@@ -126,7 +139,7 @@
 
           <div fxLayout="column">
 
-            <div fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+            <div fxLayout="row" fxLayoutAlign="space-between center" class="bidheader">
               <div fxFlex="25">Price {{market.base.ticker}}</div>
               <div fxFlex="25">Amount {{market.coin.ticker}}</div>
               <div fxFlex="25">Size {{market.base.ticker}}</div>
@@ -136,21 +149,116 @@
             <div *ngIf="market.ask.array.length == 0">No asks.</div>
 
             <div *ngFor="let bid of market.ask.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
-              <div fxFlex="25" (click)="fillSum(bid)">{{bid.sum | number: '1.8-8'}}</div>
-              <div fxFlex="25" (click)="fillTot(bid)">{{(bid.amount * bid.price) | number: '1.8-8'}}</div>
-              <div fxFlex="25" (click)="fillAmt(bid)">{{bid.amount | number: '1.8-8'}}</div>
-              <div fxFlex="25" (click)="fillPrc(bid)">{{bid.price | number: '1.8-8'}}</div>
+              <div fxFlex="25" (click)="fillPrc(bid)"><span>{{bid.price | number: '1.8-8'}}</span></div>
+              <div fxFlex="25" (click)="fillAmt(bid)"><span>{{bid.amount | number: '1.8-8'}}</span></div>
+              <div fxFlex="25" (click)="fillTot(bid)"><span>{{(bid.amount * bid.price) | number: '1.8-8'}}</span></div>
+              <div fxFlex="25" (click)="fillSum(bid)"><span>{{bid.sum | number: '1.8-8'}}</span></div>
             </div>
           </div> 
         </mat-expansion-panel>
       </mat-accordion>
     </div>
-    <div>
-      <mat-list>
-        <mat-list-item>Recent Trades</mat-list-item>  
-        <mat-list-item *ngFor="let trade of trades">
-        </mat-list-item>
-      </mat-list>
-    </div>
+
+    <mat-accordion class="pad5">
+      <mat-expansion-panel [expanded]="isActivePanelOpen">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            Active Swaps
+          </mat-panel-title>
+          <mat-panel-description>
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+
+        <div fxLayout="column">
+          <div fxLayout="row" fxLayoutAlign="space-between center" class="bidheader">
+            <div fxFlex="10" style="text-align: center">Type</div>
+            <div fxFlex="18">Amount {{market.coin.ticker}}</div>
+            <div fxFlex="18">Price {{market.base.ticker}}</div>
+            <div fxFlex="18">Size {{market.base.ticker}}</div>
+            <div fxFlex="26" style="text-align: center">Time</div>
+            <div fxFlex="10">Cancel</div>
+          </div>
+
+          <div *ngIf="market.trades.length == 0">No Orders.</div>
+
+          <div *ngFor="let bid of market.trades" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+            <div fxFlex="10" style="text-align: center">{{bid.act == 'bid' ? 'Buy' : 'Sell'}}</div>
+            <div fxFlex="18">{{bid.amount | number: '1.8-8'}}</div>
+            <div fxFlex="18">{{bid.price | number: '1.8-8'}}</div>
+            <div fxFlex="18">{{(bid.amount * bid.price) | number: '1.8-8'}}</div>
+            <div fxFlex="26" style="text-align: center">{{bid.timestamp | date : 'short' }}</div>
+            <button mat-button color="accent" fxFlex="10" (click)="cancel(bid)">Cancel</button>
+          </div>
+        </div>
+      </mat-expansion-panel>
+    </mat-accordion>
+
+    <mat-accordion class="pad5">
+      <mat-expansion-panel [expanded]="isRecentPanelOpen">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            Recent Swaps 
+          </mat-panel-title>
+          <mat-panel-description>
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+
+        <div fxLayout="column">
+          <div fxLayout="row" fxLayoutAlign="space-between center" class="bidheader">
+            <div fxFlex="10" style="text-align: center">Type</div>
+            <div fxFlex="18">Amount {{market.coin.ticker}}</div>
+            <div fxFlex="18">Price {{market.base.ticker}}</div>
+            <div fxFlex="18">Size {{market.base.ticker}}</div>
+            <div fxFlex="26" style="text-align: center">Time</div>
+            <div fxFlex="10">Cancel</div>
+          </div>
+
+          <div *ngIf="market.mine.length == 0">No Orders.</div>
+
+          <div *ngFor="let bid of market.mine" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+            <div fxFlex="10" style="text-align: center">{{bid.act == 'bid' ? 'Buy' : 'Sell'}}</div>
+            <div fxFlex="18">{{bid.amount | number: '1.8-8'}}</div>
+            <div fxFlex="18">{{bid.price | number: '1.8-8'}}</div>
+            <div fxFlex="18">{{(bid.amount * bid.price) | number: '1.8-8'}}</div>
+            <div fxFlex="26" style="text-align: center">{{bid.timestamp | date : 'short' }}</div>
+            <button mat-button color="accent" fxFlex="10" (click)="cancel(bid)">Cancel</button>
+          </div>
+        </div>
+      </mat-expansion-panel>
+    </mat-accordion>
+
+    <mat-accordion class="pad5">
+      <mat-expansion-panel [expanded]="isMyPanelOpen">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            My Orders
+          </mat-panel-title>
+          <mat-panel-description>
+          </mat-panel-description>
+        </mat-expansion-panel-header>
+
+        <div fxLayout="column">
+          <div fxLayout="row" fxLayoutAlign="space-between center" class="bidheader">
+            <div fxFlex="10" style="text-align: center">Type</div>
+            <div fxFlex="18">Amount {{market.coin.ticker}}</div>
+            <div fxFlex="18">Price {{market.base.ticker}}</div>
+            <div fxFlex="18">Size {{market.base.ticker}}</div>
+            <div fxFlex="26" style="text-align: center">Time</div>
+            <div fxFlex="10">Cancel</div>
+          </div>
+
+          <div *ngIf="market.mine.length == 0">No Orders.</div>
+
+          <div *ngFor="let bid of market.mine" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+            <div fxFlex="10" style="text-align: center">{{bid.act == 'bid' ? 'Buy' : 'Sell'}}</div>
+            <div fxFlex="18">{{bid.amount | number: '1.8-8'}}</div>
+            <div fxFlex="18">{{bid.price | number: '1.8-8'}}</div>
+            <div fxFlex="18">{{(bid.amount * bid.price) | number: '1.8-8'}}</div>
+            <div fxFlex="26" style="text-align: center">{{bid.timestamp | date : 'short' }}</div>
+            <button mat-button color="accent" fxFlex="10" (click)="cancel(bid)">Cancel</button>
+          </div>
+        </div>
+      </mat-expansion-panel>
+    </mat-accordion>
   </div>
 </div>

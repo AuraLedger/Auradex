@@ -51,23 +51,33 @@ export class WebsocketService {
     private addBid(entry: EntryMessage, market: Market)
     {
         var that = this;
-        DexUtils.verifyEntry(entry, market.base.node, function() {
-            if(entry.address == that.userService.getAccount()[market.base.name].address)
-                market.base.setNonce(that.userService.activeAccount, entry.nonce + 1);
+        DexUtils.verifyEntry(entry, market.base.node, market.base.getBookBalance(entry.address), function() {
             market.addBid(entry);
+            market.base.addBookBalance(entry.address, entry.price * entry.amount + market.base.node.getInitFee());
+            market.coin.addBookBalance(entry.redeemAddress, market.coin.node.getRedeemFee());
+            if(entry.address == that.userService.getAccount()[market.base.name].address) {
+                market.addMine(entry);
+                market.base.setNonce(that.userService.activeAccount, entry.nonce + 1);
+                market.setAvailableBalances(entry.redeemAddress, entry.address);
+            }
         }, function(err) {
             that.userService.showError(err);
         });
     }
 
-
+    //TODO: subtract from book balance when entries are removed
     private addAsk(entry: EntryMessage, market: Market)
     {
         var that = this;
-        DexUtils.verifyEntry(entry, market.coin.node, function() {
-            if(entry.address == that.userService.getAccount()[market.coin.name].address)
-                market.coin.setNonce(that.userService.activeAccount, entry.nonce + 1);
+        DexUtils.verifyEntry(entry, market.coin.node, market.coin.getBookBalance(entry.address), function() {
             market.addAsk(entry);
+            market.coin.addBookBalance(entry.address, entry.amount + market.coin.node.getInitFee());
+            market.base.addBookBalance(entry.redeemAddress, market.base.node.getRedeemFee());
+            if(entry.address == that.userService.getAccount()[market.coin.name].address) {
+                market.addMine(entry);
+                market.coin.setNonce(that.userService.activeAccount, entry.nonce + 1);
+                market.setAvailableBalances(entry.address, entry.redeemAddress);
+            }
         }, function(err) {
             that.userService.showError(err);
         });
@@ -84,16 +94,15 @@ export class WebsocketService {
         //sign two messages and send them to the service
         var that = this;
         this.userService.getPrivateKey(market.coin.name, function(key) {
-            var coinSig = market.coin.node.signMessage(json.challenge, key);
-            if(!coinSig)
+            if(!key)
                 that.userService.showError('failed to connect');
             else {
+                var coinSig = market.coin.node.signMessage(json.challenge, key);
                 that.userService.getPrivateKey(market.base.name, function(bkey) {
-                    var baseSig = market.base.node.signMessage(json.challenge, bkey);
-
-                    if(!baseSig)
+                    if(!bkey)
                         that.userService.showError('failed to connect');
                     else {
+                    var baseSig = market.base.node.signMessage(json.challenge, bkey);
                         var payload = {
                             act: 'register',
                             coinSig: coinSig,

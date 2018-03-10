@@ -12,7 +12,17 @@ export class Market {
 
     bid: SortedArray = SortedArray.comparing(x => { return -x.price; }, []);
     ask: SortedArray = SortedArray.comparing(x => { return x.price; }, []);
+    mine: EntryMessage[] = [];
     trades = [];
+    recentTrades = [];
+
+    //TODO: these are based on currect active account, need to refresh them on account switch
+    coinBalance: number;
+    baseBalance: number;
+    coinAvailable: number;
+    baseAvailable: number;
+
+    connected: boolean = false;
 
     price: number;
     change: number;
@@ -24,6 +34,20 @@ export class Market {
     ) { 
         this.webSocketServerURL = this.config.webSocketServerURL;
         this.id = this.config.id || this.coin.ticker + '-' + this.base.ticker;
+    }
+
+    addMine(entry: EntryMessage): void {
+        this.mine.push(entry);
+    }
+    
+
+    setAvailableBalances(coinAddress: string, baseAddress: string) {
+        var cb = this.coin.getBookBalance(coinAddress);
+        var cf = this.coin.node.getInitFee();
+        var bb = this.base.getBookBalance(baseAddress);
+        var bf = this.base.node.getInitFee();
+        this.coinAvailable = this.coinBalance - cb - cf;
+        this.baseAvailable = this.baseBalance - bb - bf;
     }
 
     addTrade(trade) {

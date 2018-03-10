@@ -46,12 +46,12 @@ export class EtherNode implements INode {
 
     //TODO: find gasLimit for swap transacitons init
     getInitFee(): number{
-        return this.fromGwei(this.gasGwei * 200000);
+        return Number(this.fromGwei(this.gasGwei * 200000));
     }
 
     //TODO: find gas limit for swap redeem
     getRedeemFee(): number {
-        return this.fromGwei(this.gasGwei * 150000);
+        return Number(this.fromGwei(this.gasGwei * 150000));
     }
 
     //TODO:these

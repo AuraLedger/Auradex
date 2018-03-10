@@ -34,3 +34,9 @@ export interface KeyValMessage extends MessageBase {
     key: string;
     val: string;
 }
+
+export interface CancelMessage extends MessageBase {
+    entryType: string;
+    _id: number;
+    price: number;
+}

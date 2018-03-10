@@ -12,9 +12,7 @@ import { WebsocketService } from '../websocket.service';
 import { Market } from '../market';
 import { Coin } from '../coin';
 
-import { EntryMessage } from '../lib/libauradex';
-import { DexUtils } from '../lib/libauradex';
-
+import { EntryMessage, DexUtils, CancelMessage } from '../lib/libauradex';
 
 @Component({
     selector: 'app-trade',
@@ -28,8 +26,6 @@ export class TradeComponent implements OnInit, AfterViewInit {
     markets: Market[] = [];
     market: Market;
     account;
-    coinBalance: number;
-    baseBalance: number;
 
     //orderInputs
     bidAmount: number;
@@ -56,6 +52,9 @@ export class TradeComponent implements OnInit, AfterViewInit {
     isBidPanelOpen = true;
     isAskPanelOpen = true;
     isSellPanelOpen = true;
+    isMyPanelOpen = true;
+    isActivePanelOpen = true;
+    isRecentPanelOpen = true;
 
     bids:  Bid[] = [
         {sum:0, amount: 2, price: 3, total: 6},
@@ -83,6 +82,21 @@ export class TradeComponent implements OnInit, AfterViewInit {
         var mKeys = Object.keys(this.coinService.marketd);
         for(var i = 0; i < mKeys.length; i++)
             this.markets.push(this.coinService.marketd[mKeys[i]]);
+    }
+
+    cancel(bid: EntryMessage): void {
+        var that = this;
+        this.userService.areYouSure(function() {
+            that.websocketService.getSocket(that.market, function(ws) {
+                var cancelMessage: CancelMessage = {
+                    act: 'cancel',
+                    entryType: bid.act,
+                    _id: bid._id,
+                    price: bid.price
+                };
+                ws.send(JSON.stringify(cancelMessage));
+            });
+        });
     }
 
     selectMarket(mark) {
@@ -124,8 +138,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     askAmountChanged(val) {
         if(!val) return;
-        if(val > this.coinBalance - this.market.coin.node.getInitFee())
-            val = this.coinBalance - this.market.coin.node.getInitFee();
+        if(val > this.market.coinAvailable) 
+            val = this.market.coinAvailable;
         if(val < 0)
             val = 0;
         this.askAmount = val;
@@ -133,7 +147,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
     }
 
     validateAskInputs(): string {
-        if(this.askAmount > this.coinBalance)
+        if(this.askAmount > this.market.coinAvailable)
             return 'Not enough funds.';
         if(this.askMin > this.askAmount)
             return 'Min cannot be greater than amount';
@@ -174,8 +188,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     bidAmountChanged(val) {
         if(!val) return;
-        if(val > this.coinBalance - this.market.coin.node.getInitFee())
-            val = this.coinBalance - this.market.coin.node.getInitFee();
+        if(val > this.market.baseAvailable)
+            val = this.market.baseAvailable;
         if(val < 0)
             val = 0;
         this.bidAmount = val;
@@ -183,7 +197,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
     }
 
     validateBidInputs(): string {
-        if(this.bidAmount > this.coinBalance)
+        if(this.bidAmount > this.market.baseAvailable)
             return 'Not enough funds.';
         if(this.bidMin > this.bidAmount)
             return 'Min cannot be greater than amount';
@@ -194,10 +208,10 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     //TODO: compute sums when bid/ask is added to market
     placeBid() {
-        if(this.bidAmount * this.bidPrice > this.baseBalance - this.market.base.node.getInitFee())
-            this.bidAmount = (this.baseBalance - this.market.base.node.getInitFee()) / this.bidPrice;
+        if(this.bidAmount * this.bidPrice > this.market.baseAvailable)
+            this.bidAmount = this.market.baseAvailable / this.bidPrice;
 
-        var bid = {
+        var entry = {
             act: 'bid',
             price: this.bidPrice,
             amount: this.bidAmount,
@@ -205,15 +219,42 @@ export class TradeComponent implements OnInit, AfterViewInit {
             redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
             min: this.bidMin,
             nonce: this.market.base.getNonce(this.userService.activeAccount),
+            sig: ''
         };
-        this.sendEntry(bid, this.market.base, this.baseBalance);    
+
+
+        var msg = DexUtils.getSigMessage(entry); 
+        var that = this;
+        this.userService.getPrivateKey(this.market.base.name, function(key) {
+            var sig = this.market.base.node.signMessage(msg, key);
+            entry.sig = sig;
+
+            DexUtils.verifyEntryFull(entry, that.market.base.node, that.market.baseAvailable, function() {
+
+                DexUtils.verifyRedeemBalanceFull(that.market.coin.node, that.market.coinAvailable, function() {
+
+                    that.websocketService.getSocket(that.market, function(ws) {
+                        ws.send(JSON.stringify(entry));
+                        if(entry.act == 'bid')
+                            that.bidAmount = 0;
+                        else
+                            that.askAmount = 0;
+                        that.userService.showSuccess("Order has been placed, it may take a few seconds to show in the list");
+                    });
+                }, function(err) {
+                    that.userService.showError(err);
+                });
+            }, function(err) {
+                that.userService.showError(err);
+            });
+        });  
     }
 
     placeAsk() {
-        if(this.askAmount * this.askPrice > this.coinBalance - this.market.coin.node.getInitFee())
-            this.askAmount = (this.coinBalance - this.market.coin.node.getInitFee()) / this.askPrice;
+        if(this.askAmount * this.askPrice > this.market.coinAvailable)
+            this.askAmount = (this.market.coinAvailable) / this.askPrice;
 
-        var ask = {
+        var entry = {
             act: 'ask',
             price: this.askPrice,
             amount: this.askAmount,
@@ -221,20 +262,19 @@ export class TradeComponent implements OnInit, AfterViewInit {
             redeemAddress: this.userService.getAccount()[this.market.base.name].address,
             min: this.askMin,
             nonce: this.market.coin.getNonce(this.userService.activeAccount),
+            sig: ''
         };
-        this.sendEntry(ask, this.market.coin, this.coinBalance);    
-    }
 
-    private sendEntry(entry: EntryMessage, coin: Coin, bal: number) {
+
         var msg = DexUtils.getSigMessage(entry); 
         var that = this;
-        this.userService.getPrivateKey(coin.name, function(key) {
-            var sig = coin.node.signMessage(msg, key);
+        this.userService.getPrivateKey(that.market.coin.name, function(key) {
+            var sig = that.market.coin.node.signMessage(msg, key);
             entry.sig = sig;
 
-            DexUtils.verifyEntryFull(entry, coin.node, bal, function() {
+            DexUtils.verifyEntryFull(entry, that.market.coin.node, that.market.coinAvailable, function() {
 
-                DexUtils.verifyRedeemBalanceFull(coin.node, bal, function() {
+                DexUtils.verifyRedeemBalanceFull(that.market.base.node, that.market.baseAvailable, function() {
 
                     that.websocketService.getSocket(that.market, function(ws) {
                         ws.send(JSON.stringify(entry));
@@ -307,8 +347,11 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     initMarket() {
         var that = this;
-        this.userService.getBalance(this.market.coin.name, function(b) { that.coinBalance = b; });
-        this.userService.getBalance(this.market.base.name, function(b) { that.baseBalance = b; });
+        //TODO: update these on a 60 second interval loop
+        var cAddress = this.userService.getAccount()[this.market.coin.name].address; 
+        var bAddress = this.userService.getAccount()[this.market.base.name].address; 
+        this.userService.getBalance(this.market.coin.name, function(b) { that.market.coinBalance = b; that.market.setAvailableBalances(cAddress, bAddress); });
+        this.userService.getBalance(this.market.base.name, function(b) { that.market.baseBalance = b; that.market.setAvailableBalances(cAddress, bAddress); });
         this.initWebsockets();
 
         this.askMinPercent = Number(this.localStorageService.get(this.market.coin.name + 'askMinPercent') || 50);

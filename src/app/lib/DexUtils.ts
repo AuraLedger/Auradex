@@ -37,24 +37,18 @@ export class DexUtils {
         }
 
         //verify bidder/asker has enough funds
-        node.getBalance(entry.address, function(err, bal) {
-            if(err)
-                fail('unable to verify balance of entry');
-            else {
-                if(entry.act == 'bid') {
-                    if ((entry.amount * entry.price) + node.getInitFee() > bal)
-                        fail('bidder is short on funds')
-                    else
-                        success();
-                } else if (entry.act == 'ask') {
-                    if (entry.amount + node.getInitFee() > bal)
-                        fail('asker is short on funds')
-                    else
-                        success();
-                } else
-                    fail('unknown entry type ' + entry.act);
-            }
-        });
+        if(entry.act == 'bid') {
+            if ((entry.amount * entry.price) + node.getInitFee() > bal)
+                fail('bidder is short on funds')
+            else
+                success();
+        } else if (entry.act == 'ask') {
+            if (entry.amount + node.getInitFee() > bal)
+                fail('asker is short on funds')
+            else
+                success();
+        } else
+            fail('unknown entry type ' + entry.act);
     }
 
     static verifyRedeemBalanceFull(node: INode, bal: number, success: () => void, fail: (err) => void) {
@@ -63,7 +57,7 @@ export class DexUtils {
         else
             success();
     }
-    
+
     static verifyRedeemBalance(address: string, node: INode, bookBalance: number, success: () => void, fail: (err) => void) {
         node.getBalance(address, function(err, bal) {
             if(err)
