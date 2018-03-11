@@ -6,6 +6,17 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 
 ![screenshot](https://i.imgur.com/1ZpNikY.png)
 
+## Pre-reqs
+[NodeJS](https://nodejs.org/en/)
+Tested with version 8.0.0+, YMMV with earlier versions
+
+## Install
+```
+git clone https://github.com/AuraLedger/Auradex.git
+cd Auradex
+npm install
+```
+
 ## Development server
 
 Run `ng serve` for a dev server. Navigate to `http://localhost:4201/`. The app will automatically reload if you change any of the source files.
