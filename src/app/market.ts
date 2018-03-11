@@ -16,6 +16,11 @@ export class Market {
     trades = [];
     recentTrades = [];
 
+    myMap = {
+        bid: {},
+        ask: {}
+    };
+
     //TODO: these are based on currect active account, need to refresh them on account switch
     coinBalance: number;
     baseBalance: number;
@@ -41,10 +46,12 @@ export class Market {
 
     addMine(entry: EntryMessage): void {
         this.mine.push(entry);
+        this.myMap[entry.act][entry._id] = entry;
         this.sortMyList();
     }
 
     removeMine(entry: EntryMessage): void {
+        delete this.myMap[entry.act][entry._id];
         for(var i = 0; i < this.mine.length; i++)
         {
             if(this.mine[i]._id == entry._id) {
@@ -85,12 +92,14 @@ export class Market {
         var cf = this.coin.node.getInitFee();
         var bb = this.base.getBookBalance(baseAddress);
         var bf = this.base.node.getInitFee();
-        this.coinAvailable = this.coinBalance - cb - cf;
-        this.baseAvailable = this.baseBalance - bb - bf;
+        this.coinAvailable = Math.max(this.coinBalance - cb - cf, 0);
+        this.baseAvailable = Math.max(this.baseBalance - bb - bf, 0);
     }
 
     addTrade(trade) {
         this.trades.push(trade);
+
+        if(trade.
     }
 
     addBid(entry: EntryMessage) {

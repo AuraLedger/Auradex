@@ -18,8 +18,8 @@
             <mat-panel-title>
               Sell {{market.coin.name}} ({{market.coin.ticker}})
             </mat-panel-title>
-            <mat-panel-description>
-              {{market.coin.name}} Balance: {{market.coinAvailable | number: '1.8-8'}} {{market.coin.ticker}}
+            <mat-panel-description [matTooltip]="availTooltip">
+              {{market.coin.name}} Available: {{market.coinAvailable | number: '1.8-8'}} {{market.coin.ticker}}
             </mat-panel-description>
           </mat-expansion-panel-header>
 
@@ -55,8 +55,8 @@
             <mat-panel-title>
               Buy {{market.coin.name}} ({{market.coin.ticker}}) 
             </mat-panel-title>
-            <mat-panel-description>
-              {{market.base.name}} Balance: {{market.baseAvailable | number: '1.8-8'}} {{market.base.ticker}}
+            <mat-panel-description [matTooltip]="availTooltip">
+              {{market.base.name}} Available: {{market.baseAvailable | number: '1.8-8'}} {{market.base.ticker}}
             </mat-panel-description>
           </mat-expansion-panel-header>
 

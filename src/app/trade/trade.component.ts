@@ -39,6 +39,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
     askMinPercent: number;
 
     minToolTip = "Set the minimum amount you are willing to trade, in case someone wants to swap for less than your total.";
+    availTooltip = "Your available balance is calculated from your total wallet balance minus your open orders and the average network transaction fee required to initiate a swap."
 
     //chart
     ohlc;

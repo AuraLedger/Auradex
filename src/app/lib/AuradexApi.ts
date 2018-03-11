@@ -1,7 +1,10 @@
+//interfaces for messages that are sent via websockets
+
 export interface MessageBase {
     act: string; // message action
 }
 
+//act: register
 export interface RegisterMessage extends MessageBase {
     coinAddress: string;
     baseAddress: string;
@@ -9,6 +12,7 @@ export interface RegisterMessage extends MessageBase {
     baseSig: string;
 }
 
+//act: bid | ask
 export interface EntryMessage extends MessageBase {
     address: string; //address (coin for ask, base for bid),
     redeemAddress: string; //address to receive coins of swap
@@ -25,18 +29,38 @@ export interface EntryMessage extends MessageBase {
     _id?: string;
 }
 
+//act: nonce
 export interface NonceMessage extends MessageBase {
     entryType: string; //bid or ask
     val: number; //the nonce
 }
 
+//act: keyval
+//used to update a value of an entry
 export interface KeyValMessage extends MessageBase {
+    entryType: string; //bid, ask, or trade
+    _id: string;
     key: string;
     val: string;
 }
 
+//act: cancel
+//used to cancel a book entry
 export interface CancelMessage extends MessageBase {
     entryType: string;
     _id: string;
     price: number;
+}
+
+//act: trade
+//represents a match of two entries
+export interface TradeMessage extends MessageBase {
+    cause: string; // 'bid' or 'ask' - action that initiated the match
+    id1: string; // bid or ask _id of trade initiator 
+    id2: string; // bid or ask _id of trade receiver 
+    state: string; // status 'active', 'complete', 'cancel'
+    step: number; // 0-3
+    timestamp: Date; // timestamp
+    amount: number; // trade amount of market coin
+    _id: string; //db id
 }
