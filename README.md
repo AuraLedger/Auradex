@@ -7,8 +7,11 @@ This project was generated with [Angular CLI](https://github.com/angular/angular
 ![screenshot](https://i.imgur.com/1ZpNikY.png)
 
 ## Install
-
-`npm install`
+```
+git clone https://github.com/AuraLedger/Auradex.git
+cd Auradex
+npm install
+```
 
 ## Development server
 
