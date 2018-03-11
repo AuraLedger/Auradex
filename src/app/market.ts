@@ -44,6 +44,16 @@ export class Market {
         this.sortMyList();
     }
 
+    removeMine(entry: EntryMessage): void {
+        for(var i = 0; i < this.mine.length; i++)
+        {
+            if(this.mine[i]._id == entry._id) {
+                this.mine.splice(i, 1);
+                return;
+            }
+        }
+    }
+
     sortMyList() {
         var that = this;
         if(this.mySortProperty == 'size')

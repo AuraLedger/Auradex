@@ -40,15 +40,23 @@ export class WebsocketService {
     cancel(obj: CancelMessage, market) {
         if(obj.entryType == 'bid')
         {
-            var entry = DexUtils.removeFromBook(market.bids, obj);  
+            var entry = DexUtils.removeFromBook(market.bid, obj);  
             market.base.subBookBalance(entry.address, entry.price * entry.amount + market.base.node.getInitFee());
             market.coin.subBookBalance(entry.redeemAddress, market.coin.node.getRedeemFee());
+            if(entry.address == this.userService.getAccount()[market.base.name].address) {
+                market.removeMine(entry);
+                market.setAvailableBalances(entry.redeemAddress, entry.address);
+            }
         }
         else if (obj.entryType == 'ask')
         {
-            var entry = DexUtils.removeFromBook(market.asks, obj);  
+            var entry = DexUtils.removeFromBook(market.ask, obj);  
             market.coin.subBookBalance(entry.address, entry.amount + market.coin.node.getInitFee());
             market.base.subBookBalance(entry.redeemAddress, market.base.node.getRedeemFee());
+            if(entry.address == this.userService.getAccount()[market.coin.name].address) {
+                market.removeMine(entry);
+                market.setAvailableBalances(entry.address, entry.redeemAddress);
+            }
         }
         else
             this.userService.showError("Unknown cancel entry type: " + obj.entryType);
@@ -59,6 +67,7 @@ export class WebsocketService {
         market.base.node.setFeeRate(obj.baseFeeRate);
     }
 
+    //TODO: check connection state, and try to reconnect, or throw/show error
     getSocket(market: Market, cb) {
         if(this.socks.hasOwnProperty(market.id))
             cb(this.socks[market.id]);

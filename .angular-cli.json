@@ -22,7 +22,7 @@
         "styles.scss"
       ],
       "scripts": [
-        "assets/bip39all.js" 
+        "assets/bip39lib.js" 
       ],
       "environmentSource": "environments/environment.ts",
       "environments": {
