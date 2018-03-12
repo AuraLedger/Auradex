@@ -11,12 +11,14 @@ export class EtherNode implements INode {
     requiredConfirmations: number = 12;
     contractAddress: string;
     type: string;
+    chainId: number;
 
 
     constructor(config: EtherConfig) {
         this.web3 = new Web3(new Web3.providers.HttpProvider(config.rpcUrl));
         this.contractAddress = config.contractAddress;
         this.type = config.type;
+        this.chainId = config.chainId;
     }
 
     getBalance(address: string, handler: any) {
@@ -85,8 +87,37 @@ export class EtherNode implements INode {
     initSwap(){}
 
     acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, success: (txId: string) => void, fail: (error: any) => void): void {
-        var contract = this.web3.eth.contrace(this.atomicswapContractABI);
-        //this.web3.
+        var contract = new this.web3.eth.Contract(this.atomicswapContractABI, this.contractAddress, {
+            from: initiator.address,
+            gasPrice: Web3.utils.toWei(Web3.utils.toBN(this.gasGwei), 'gwei')
+        });
+
+
+        var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 24; //add 24 hours
+        var hashedSecret = Web3.utils.hexToBytes(trade.hashedSecret);
+
+        var participateMethod = contract.methods.participate(refundTime, hashedSecret, receiver.redeemAddress);
+
+        var that = this;
+        participateMethod.estimateGas({from: initiator.address, gas: 300000}, function(err, gas) {
+            if(err)
+                fail(err);
+            else {
+                that.web3.eth.accounts.signTransaction( {
+                    to: that.contractAddress,
+                    value: Web3.utils.toWei(Web3.toBN(trade.amount), 'ether'),
+                    gas: gas,
+                    gasPrice: Web3.utils.toWei(Web3.utils.toBN(that.gasGwei), 'gwei'),
+                    chainId: that.chainId 
+                }, function (err, signedTx) {
+                    if(err)
+                        fail(err);
+                    else {
+                        that.web3.eth.sendTransaction({to: that.contractAddress, from: initiator.address, data: participateMethod.encodeABI()});
+                    }
+                });
+            }
+        });
     }
 
     redeemSwap(){}

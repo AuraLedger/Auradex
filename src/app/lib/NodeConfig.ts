@@ -5,5 +5,6 @@ export interface NodeConfig {
 export interface EtherConfig extends NodeConfig {
     rpcUrl: string;
     contractAddress: string;
+    chainId: number;
 }
 

@@ -62,7 +62,6 @@ export class CoinConfig {
     ticker: string;
     hdPath: number;
     node: NodeConfig;
-    chainId: number;
     website: string;
     ANN: string;
     twitter: string;
