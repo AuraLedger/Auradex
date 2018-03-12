@@ -1,6 +1,7 @@
 import { INode } from './INode';
 import { EtherConfig } from './NodeConfig';
 import { EntryMessage, TradeMessage } from './AuradexApi';
+import { EthAtomicSwap } from './EthAtomicSwap';
 
 declare var require: any
 const Web3 = require('web3');
@@ -12,7 +13,6 @@ export class EtherNode implements INode {
     contractAddress: string;
     type: string;
     chainId: number;
-
 
     constructor(config: EtherConfig) {
         this.web3 = new Web3(new Web3.providers.HttpProvider(config.rpcUrl));
@@ -81,13 +81,11 @@ export class EtherNode implements INode {
         });
     }
 
-    atomicswapContractABI = [{"constant":false,"inputs":[{"name":"_refundTime","type":"uint256"},{"name":"_hashedSecret","type":"bytes20"},{"name":"_initiator","type":"address"}],"name":"participate","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":false,"inputs":[{"name":"_hashedSecret","type":"bytes20"}],"name":"refund","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"_secret","type":"bytes32"},{"name":"_hashedSecret","type":"bytes20"}],"name":"redeem","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"_refundTime","type":"uint256"},{"name":"_hashedSecret","type":"bytes20"},{"name":"_participant","type":"address"}],"name":"initiate","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"constant":true,"inputs":[{"name":"","type":"bytes20"}],"name":"swaps","outputs":[{"name":"initTimestamp","type":"uint256"},{"name":"refundTime","type":"uint256"},{"name":"hashedSecret","type":"bytes20"},{"name":"secret","type":"bytes32"},{"name":"initiator","type":"address"},{"name":"participant","type":"address"},{"name":"value","type":"uint256"},{"name":"emptied","type":"bool"},{"name":"state","type":"uint8"}],"payable":false,"stateMutability":"view","type":"function"},{"inputs":[],"payable":false,"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_refundTime","type":"uint256"}],"name":"Refunded","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_redeemTime","type":"uint256"}],"name":"Redeemed","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_initiator","type":"address"},{"indexed":false,"name":"_participator","type":"address"},{"indexed":false,"name":"_hashedSecret","type":"bytes20"},{"indexed":false,"name":"_value","type":"uint256"}],"name":"Participated","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_initTimestamp","type":"uint256"},{"indexed":false,"name":"_refundTime","type":"uint256"},{"indexed":false,"name":"_hashedSecret","type":"bytes20"},{"indexed":false,"name":"_participant","type":"address"},{"indexed":false,"name":"_initiator","type":"address"},{"indexed":false,"name":"_funds","type":"uint256"}],"name":"Initiated","type":"event"}];
-
     //TODO:these
     initSwap(){}
 
     acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, success: (txId: string) => void, fail: (error: any) => void): void {
-        var contract = new this.web3.eth.Contract(this.atomicswapContractABI, this.contractAddress, {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
             from: initiator.address,
             gasPrice: Web3.utils.toWei(Web3.utils.toBN(this.gasGwei), 'gwei')
         });
