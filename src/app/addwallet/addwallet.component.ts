@@ -12,6 +12,8 @@ import * as CryptoJS from 'crypto-js';
   styleUrls: ['./addwallet.component.scss'],
 })
 
+//TODO: consider only allowing 1 account... users probably shouldn't be sharing a trading computer since it should be left online to complete trades
+//TODO: consider allowing multiple addresses per coin for additional privacy // will be needed for bitcoin change addresses
 export class AddwalletComponent {
 
   seedWords = "";

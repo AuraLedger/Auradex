@@ -49,8 +49,8 @@ export class CoinService {
             ticker: 'ARA',
             hdPath: 312,
             node: <EtherConfig>{
-              type: 'Ether',
-              rpcUrl: 'https://pool.auraledger.com'
+                type: 'Ether',
+                rpcUrl: 'https://pool.auraledger.com'
             },
             chainId: 312,
             website: 'https://auraledger.com',
@@ -69,8 +69,8 @@ export class CoinService {
             ticker: 'ETH',
             hdPath: 60,
             node: <EtherConfig>{
-              type: 'Ether',
-              rpcUrl: 'https://mainnet.infura.io/CQE6ZkyB1BOEZx4cOkAl'
+                type: 'Ether',
+                rpcUrl: 'https://mainnet.infura.io/CQE6ZkyB1BOEZx4cOkAl'
             },
             chainId: 1,
             website: 'https://ethereum.org',
@@ -89,8 +89,9 @@ export class CoinService {
             ticker: 'ROP',
             hdPath: 2837466,
             node: <EtherConfig>{
-              type: 'Ether',
-              rpcUrl: 'https://ropsten.infura.io/CQE6ZkyB1BOEZx4cOkAl'
+                type: 'Ether',
+                rpcUrl: 'https://ropsten.infura.io/CQE6ZkyB1BOEZx4cOkAl',
+                contractAddress: '0x6160455124119D1f2287034E3789A7a4c2e59e4F'
             },
             chainId: 3,
             website: 'https://ethereum.org',
@@ -109,8 +110,9 @@ export class CoinService {
             ticker: 'RNK',
             hdPath: 2837467,
             node: <EtherConfig>{
-              type: 'Ether',
-              rpcUrl: 'https://rinkeby.infura.io/CQE6ZkyB1BOEZx4cOkAl'
+                type: 'Ether',
+                rpcUrl: 'https://rinkeby.infura.io/CQE6ZkyB1BOEZx4cOkAl',
+                contractAddress: '0x6Fa6c344af3F77B8e2BA698893AdfAC2aFF95e7E'
             },
             chainId: 4,
             website: 'https://ethereum.org',

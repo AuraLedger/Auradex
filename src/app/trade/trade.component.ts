@@ -207,7 +207,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
 
 
-    //TODO: compute sums when bid/ask is added to market
+    //TODO: make sure they don't also have an ask with a better price
     placeBid() {
         if(this.bidAmount * this.bidPrice > this.market.baseAvailable)
             this.bidAmount = this.market.baseAvailable / this.bidPrice;
@@ -251,6 +251,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
         });  
     }
 
+    //TODO: make sure they don't also have an bid with a better price
     placeAsk() {
         if(this.askAmount * this.askPrice > this.market.coinAvailable)
             this.askAmount = (this.market.coinAvailable) / this.askPrice;

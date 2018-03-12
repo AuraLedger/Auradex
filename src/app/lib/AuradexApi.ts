@@ -57,10 +57,12 @@ export interface CancelMessage extends MessageBase {
 export interface TradeMessage extends MessageBase {
     cause: string; // 'bid' or 'ask' - action that initiated the match
     id1: string; // bid or ask _id of trade initiator 
-    id2: string; // bid or ask _id of trade receiver 
+    id2: string; // ask or bid _id of trade receiver 
     state: string; // status 'active', 'complete', 'cancel'
     step: number; // 0-3
     timestamp: Date; // timestamp
     amount: number; // trade amount of market coin
+    txIds: string[]; // the transactions ids for each step of the swap
+    hashedSecret: string; 
     _id: string; //db id
 }

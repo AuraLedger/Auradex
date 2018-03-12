@@ -1,3 +1,5 @@
+import { EntryMessage, TradeMessage } from './AuradexApi';
+
 export interface INode {
     getBalance(address: string, handler: any): void;
     recover(msg: string, sig: string): string;
@@ -7,10 +9,12 @@ export interface INode {
     getInitFee(): number;
     getRedeemFee(): number;
 
+    getConfirmationCount(txId: string, success: (count: number) => void, fail: (error: any) => void): void;
+    requiredConfirmations: number;
+
     //swap actions
     initSwap();
-    acceptSwap();
+    acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, success: (txId: string) => void, fail: (error: any) => void): void; 
     redeemSwap();
     checkStatus();
-
 }

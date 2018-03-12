@@ -40,12 +40,12 @@ export class DexUtils {
         //verify bidder/asker has enough funds
         if(entry.act == 'bid') {
             if ((entry.amount * entry.price) + node.getInitFee() > bal)
-                fail('bidder is short on funds')
+                fail('bidder is short on available funds')
             else
                 success();
         } else if (entry.act == 'ask') {
             if (entry.amount + node.getInitFee() > bal)
-                fail('asker is short on funds')
+                fail('asker is short on available funds')
             else
                 success();
         } else

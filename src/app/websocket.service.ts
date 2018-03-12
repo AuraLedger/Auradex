@@ -43,6 +43,7 @@ export class WebsocketService {
             var entry = DexUtils.removeFromBook(market.bid, obj);  
             market.base.subBookBalance(entry.address, entry.price * entry.amount + market.base.node.getInitFee());
             market.coin.subBookBalance(entry.redeemAddress, market.coin.node.getRedeemFee());
+            delete market.fullMap.bid[obj._id];
             if(entry.address == this.userService.getAccount()[market.base.name].address) {
                 market.removeMine(entry);
                 market.setAvailableBalances(entry.redeemAddress, entry.address);
@@ -53,6 +54,7 @@ export class WebsocketService {
             var entry = DexUtils.removeFromBook(market.ask, obj);  
             market.coin.subBookBalance(entry.address, entry.amount + market.coin.node.getInitFee());
             market.base.subBookBalance(entry.redeemAddress, market.base.node.getRedeemFee());
+            delete market.fullMap.ask[obj._id];
             if(entry.address == this.userService.getAccount()[market.coin.name].address) {
                 market.removeMine(entry);
                 market.setAvailableBalances(entry.address, entry.redeemAddress);
