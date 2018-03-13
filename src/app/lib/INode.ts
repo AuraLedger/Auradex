@@ -13,8 +13,8 @@ export interface INode {
     requiredConfirmations: number;
 
     //swap actions
-    initSwap();
-    acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, success: (txId: string) => void, fail: (error: any) => void): void; 
+    initSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
+    acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
     redeemSwap();
     checkStatus();
 }

@@ -5,6 +5,7 @@ import { MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material';
 import * as CryptoJS from 'crypto-js';
 import { CryptoService } from './crypto.service'
 import { CoinService } from './coin.service'
+import { CoreService } from './core.service'
 import { PasswordComponent } from './password/password.component'
 import { AreYouSureComponent } from './are-you-sure/are-you-sure.component';
 
@@ -17,14 +18,15 @@ export class UserService {
     accounts;
     activeAccount;
     transactions;
-    trades;
+    //trades;
 
     constructor(
         private localStorageService: LocalStorageService, 
         public snackBar: MatSnackBar,
         public dialog: MatDialog,
         private cryptoService: CryptoService,
-        private coinService: CoinService
+        private coinService: CoinService,
+        private coreService: CoreService
     ) { 
         this.storage = this.localStorageService;
         this.settings = this.storage.get('settings');
@@ -47,7 +49,7 @@ export class UserService {
         this.accounts = this.storage.get('accounts') || {};
         this.activeAccount = this.storage.get('activeAccount');
         this.transactions = this.storage.get('transactions ') || [];
-        this.trades = this.storage.get('trades') || {};
+        //this.trades = this.storage.get('trades') || {};
 
         for(var i = 0; i < this.settings.customCoins.length; i++)
             this.coinService.coins.push(this.settings.customCoins[i]);
@@ -91,6 +93,25 @@ export class UserService {
     public getAccount(name?: string) {
         name = name || this.activeAccount;
         return this.accounts[name];
+    }
+
+    public handleError(error: any) {
+        console.log(error);
+        var msg: string = "";
+        if(typeof error === 'string')
+            msg = error;
+        else if (error)
+        {
+            if(error.msg)
+                msg = error.msg;
+            else if(error.message)
+                msg = error.message;
+            else if(error.name)
+                msg = 'Error ' + error.name;
+            else
+                msg = error;
+        }
+        this.showError(msg);
     }
 
     public showError(message) {

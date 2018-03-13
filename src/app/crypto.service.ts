@@ -14,15 +14,15 @@ export class CryptoService {
         return this.passwords.hasOwnProperty(accountName);
     }
 
-    public getUnlockedPrivKey(account, coin) {
+    public getUnlockedPrivKey(account, coin: string) {
         return this.decryptPrivateKey(account, coin, this.passwords[account.accountName]);
     }
 
-    public getTradePrivateKey(account, coin) {
+    public getTradePrivateKey(account, coin: string) {
         return this.decryptPrivateKey(account, coin, this.tradePasswords[account.accountName]);
     }
 
-    public isTradeUnlocked(coin) {
+    public isTradeUnlocked(coin: string) {
         return this.tradePasswords.hasOwnProperty(coin);
     }
 

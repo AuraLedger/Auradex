@@ -37,6 +37,7 @@ import { UserService } from './user.service';
 import { WebsocketService } from './websocket.service';
 import { NodeService } from './node.service';
 import { CryptoService } from './crypto.service';
+import { CoreService } from './core.service';
 
 import { CoinTestPipe } from './coin-test.pipe';
 import { FilterPipe } from './filter.pipe';
@@ -104,7 +105,7 @@ declare var require: any
             storageType: 'localStorage'
         })
     ],
-    providers: [ CoinService, UserService, WebsocketService, NodeService, CryptoService ],
+    providers: [ CoinService, UserService, WebsocketService, NodeService, CryptoService, CoreService ],
     entryComponents: [ AddwalletComponent, SendComponent, DeleteComponent, PasswordComponent, AreYouSureComponent ],
     bootstrap: [ AppComponent ]
 })

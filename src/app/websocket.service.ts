@@ -1,14 +1,24 @@
 import { Injectable } from '@angular/core';
+import { Coin } from './coin';
 import { Market } from './market';
 import { UserService } from './user.service';
-import { EntryMessage, NonceMessage, DexUtils, CancelMessage } from './lib/libauradex';
+import { EntryMessage, NonceMessage, DexUtils, CancelMessage, TradeMessage, StepMessage, INode } from './lib/libauradex';
+
+import { LocalStorageService } from 'angular-2-local-storage';
+import { CryptoService } from './crypto.service';
+import * as RIPEMD160 from 'ripemd160';
+import * as randombytes from 'randombytes';
 
 @Injectable()
 export class WebsocketService {
 
     socks: any = {};
 
-    constructor(private userService: UserService) { }
+    constructor(
+        private userService: UserService,
+        private storage: LocalStorageService,
+        private cryptoService: CryptoService
+    ) { }
 
     connect(market: Market, cb?) {
         if(!this.socks.hasOwnProperty(market.id))
@@ -23,7 +33,7 @@ export class WebsocketService {
                     case 'bid': that.addBid(json, market); break; //TODO: verify bid
                     case 'ask': that.addAsk(json, market); break; 
                     case 'nonce': that.nonce(json, market); break; 
-                    case 'trade': market.addTrade(json); break; 
+                    case 'trade': that.addTrade(json, market); break; 
                     case 'register': that.register(json, ws, market); break;
                     case 'cancel': that.cancel(json, market); break;
 
@@ -145,4 +155,153 @@ export class WebsocketService {
             }
         });
     }
+
+    private addTrade(trade: TradeMessage, market: Market): void {
+        if(market.addTrade(trade))
+            this.processTrades(market);
+    }
+   
+    //TODO: should be called periodically, probably every 30 seconds is sufficient
+    //might need to increase frequency when lightning/plasma/raiden is implemented
+    //or switch to an event based model and subscribe to nodes connected via websockets
+    processTrades(market: Market) {
+        var that = this;
+        for(var i = 0; i < market.myTrades.length; i++)
+        {
+            var trade: TradeMessage = market.myTrades[i];
+            var isReceiver: boolean = market.myMap.bid.hasOwnProperty(trade.id2) || market.myMap.ask.hasOwnProperty(trade.id2);
+            if(!isReceiver && !(market.myMap.bid.hasOwnProperty(trade.id1) || market.myMap.ask.hasOwnProperty(trade.id1))) {
+                that.userService.handleError("Your entry not found");
+                continue;
+            }
+            var myCoin, theirCoin, receiver, initiator;
+
+            //determine who is on which side of the trade, and which coin needs to be sent/received
+            if(isReceiver) {
+                if(trade.cause == 'bid') {
+                    myCoin = market.coin;
+                    theirCoin = market.base;
+                    receiver = market.myMap.ask[trade.id2];
+                    initiator = market.fullMap.bid[trade.id1];
+                } else {
+                    myCoin = market.base;
+                    theirCoin = market.coin;
+                    receiver = market.myMap.bid[trade.id2];
+                    initiator = market.fullMap.ask[trade.id1];
+                }
+            } else {
+                if(trade.cause == 'bid') {
+                    myCoin = market.base;
+                    theirCoin = market.coin;
+                    receiver = market.fullMap.ask[trade.id2];
+                    initiator = market.myMap.bid[trade.id1];
+                } else {
+                    myCoin = market.coin;
+                    theirCoin = market.base;
+                    receiver = market.fullMap.bid[trade.id2];
+                    initiator = market.myMap.ask[trade.id1];
+                } 
+            }
+
+
+            if(trade.step == 0 && isReceiver) { 
+                // you are the receivier of the market trade, initiate HTLC swap 
+                // Generate random 32byte secret and create RIPEMD160 hash from it 
+                randombytes.getRandomBytes(32, function(err, buffer) {
+                    var secret = buffer.toString('hex');
+                    var hashedSecret = new RIPEMD160().update(buffer).digest('hex');
+                    that.storage.set(hashedSecret, secret);
+                    //initiate HTLC swap
+                    trade.hashedSecret = hashedSecret;
+                    that.userService.getTradePrivateKey(myCoin.name, function(key) {
+                        myCoin.node.initSwap(receiver, initiator, trade, key, (txId) => {
+                            //TODO: need a way for users to manually input a transaction id to continue the swap in case the initial transaction is mined but this methed fails to return
+                            trade.txIds.push(txId);
+                            trade.step = 1; 
+                            that.getSocket(market, function(ws) {
+                                var step: StepMessage = {
+                                    act: 'step',
+                                    _id: trade._id,
+                                    step: 1,
+                                    txId: txId,
+                                    hashedSecret: hashedSecret
+                                };
+                                ws.send(JSON.stringify(step));
+                            });
+                        }, (error) => {
+                            that.userService.handleError(error);
+                        });
+                    }, trade);
+                });
+
+            } else if (trade.step == 1 && !isReceiver) {
+                // you are intitiator of the market trade, check for confirmations, participate in HTLC swap
+                if(trade.txIds.length == 1 && trade.hashedSecret && trade.hashedSecret.length == 32) {
+                    theirCoin.node.getConfirmationCount(trade.txIds[0], (count) => {
+                        if(count >= theirCoin.node.requiredConfirmations) {
+                            //TODO: verify transaction data (amount, recipient, refundTime, hashedSecret, initiator) 
+                            that.userService.getTradePrivateKey(myCoin.name, function(key) {
+                                myCoin.node.acceptSwap(receiver, initiator, trade, key, (txId) => {
+                                    trade.txIds.push(txId);
+                                    trade.step = 2; 
+                                    that.getSocket(market, function(ws) {
+                                        var step: StepMessage = {
+                                            act: 'step',
+                                            _id: trade._id,
+                                            step: 3,
+                                            txId: txId
+                                        };
+                                        ws.send(JSON.stringify(step));
+                                    });
+                                }, (error) => {
+                                    that.userService.showError(error);
+                                    console.log(error);
+                                }); 
+                            });
+                        }
+                    }, (error) => {
+                        that.userService.showError(error);
+                        console.log(error);
+                    });
+                }
+            } else if(trade.step == 2) {
+                if(isReceiver) { 
+                    // you are the receivier of the market trade, redeem HTLC swap with your secret
+                    var secret = this.storage.get(trade.hashedSecret);
+                    //redeem HTLC swap
+                    //TODO: verify transaction data (amount, recipient, refundTime, hashedSecret, initiator) 
+                    that.userService.getTradePrivateKey(myCoin.name, function(key) {
+                        myCoin.node.redeemSwap(receiver, initiator, trade, key, (txId) => {
+                            //TODO: need a way for users to manually input a transaction id to continue the swap in case the initial transaction is mined but this methed fails to return
+                            trade.txIds.push(txId);
+                            trade.step = 3; 
+                            that.getSocket(market, function(ws) {
+                                var step: StepMessage = {
+                                    act: 'step',
+                                    _id: trade._id,
+                                    step: 4,
+                                    txId: txId
+                                };
+                                ws.send(JSON.stringify(step));
+                            });
+                        }, (error) => {
+                            that.userService.handleError(error);
+                        });
+                    }, trade);
+                } else {
+                    //you are the initiator, check their transaction for the secret and finalize the swap
+                    
+                }
+            } else if (trade.step == 3 && isReceiver) {
+                //TODO: verify that you are done with the trade, and remove
+                market.myTrades.splice(i, 1);
+                i--;
+            } else if (trade.step == 4) {
+                //TODO: verify that you are done with the trade, and remove
+                market.myTrades.splice(i, 1);
+                i--;
+            }
+        }
+    }
+
 }

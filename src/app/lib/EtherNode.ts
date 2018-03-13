@@ -82,19 +82,70 @@ export class EtherNode implements INode {
     }
 
     //TODO:these
-    initSwap(){}
+    initSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
+            from: receiver.address,
+            gasPrice: Web3.utils.toWei(Web3.utils.toBN(this.gasGwei), 'gwei')
+        });
 
-    acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, success: (txId: string) => void, fail: (error: any) => void): void {
+        var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 48; //add 48 hours
+        var hashedSecret = Web3.utils.hexToBytes(trade.hashedSecret);
+
+        var amount = 0;
+        if(trade.cause == 'ask') {
+            amount = trade.amount * receiver.price;
+        } else {
+            amount = trade.amount;
+        }
+
+        var initiateMethod = contract.methods.initiate(refundTime, hashedSecret, initiator.redeemAddress);
+        
+        var that = this;
+        initiateMethod.estimateGas({from: receiver.address, gas: 300000}, function(err, gas) {
+            if(err)
+                fail(err);
+            else {
+                that.web3.eth.accounts.signTransaction( {
+                    to: that.contractAddress,
+                    value: Web3.utils.toWei(Web3.toBN(amount), 'ether'),
+                    gas: gas,
+                    gasPrice: Web3.utils.toWei(Web3.utils.toBN(that.gasGwei), 'gwei'),
+                    chainId: that.chainId, 
+                    data: initiateMethod.encodeABI()
+                }, privateKey, function (err, signedTx) {
+                    if(err)
+                        fail(err);
+                    else {
+                        that.web3.eth.sendSignedTransaction(signedTx, function(err, txId) {
+                            if(err)
+                                fail(err);
+                            else
+                                success(txId);
+                        
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
         var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
             from: initiator.address,
             gasPrice: Web3.utils.toWei(Web3.utils.toBN(this.gasGwei), 'gwei')
         });
 
-
         var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 24; //add 24 hours
         var hashedSecret = Web3.utils.hexToBytes(trade.hashedSecret);
 
         var participateMethod = contract.methods.participate(refundTime, hashedSecret, receiver.redeemAddress);
+
+        var amount = 0;
+        if(trade.cause == 'bid') {
+            amount = trade.amount * receiver.price;
+        } else {
+            amount = trade.amount;
+        }
 
         var that = this;
         participateMethod.estimateGas({from: initiator.address, gas: 300000}, function(err, gas) {
@@ -103,21 +154,30 @@ export class EtherNode implements INode {
             else {
                 that.web3.eth.accounts.signTransaction( {
                     to: that.contractAddress,
-                    value: Web3.utils.toWei(Web3.toBN(trade.amount), 'ether'),
+                    value: Web3.utils.toWei(Web3.toBN(amount), 'ether'),
                     gas: gas,
                     gasPrice: Web3.utils.toWei(Web3.utils.toBN(that.gasGwei), 'gwei'),
-                    chainId: that.chainId 
-                }, function (err, signedTx) {
+                    chainId: that.chainId, 
+                    data: participateMethod.encodeABI()
+                }, privateKey, function (err, signedTx) {
                     if(err)
                         fail(err);
                     else {
-                        that.web3.eth.sendTransaction({to: that.contractAddress, from: initiator.address, data: participateMethod.encodeABI()});
+                        that.web3.eth.sendSignedTransaction(signedTx, function(err, txId) {
+                            if(err)
+                                fail(err);
+                            else
+                                success(txId);
+                        
+                        });
                     }
                 });
             }
         });
     }
 
-    redeemSwap(){}
+    redeemSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+    }
+
     checkStatus() {}
 }

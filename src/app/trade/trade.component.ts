@@ -15,7 +15,7 @@ import { Coin } from '../coin';
 import { EntryMessage, DexUtils, CancelMessage } from '../lib/libauradex';
 
 @Component({
-    selector: 'app-trade',
+    selector: 'app-trade', 
     templateUrl: './trade.component.html',
     styleUrls: ['./trade.component.scss']
 })
@@ -349,9 +349,11 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     initMarket() {
         var that = this;
-        //TODO: update these on a 60 second interval loop
+        this.market.account = this.userService.getAccount();
         var cAddress = this.userService.getAccount()[this.market.coin.name].address; 
-        var bAddress = this.userService.getAccount()[this.market.base.name].address; 
+        var bAddress = this.userService.getAccount()[this.market.base.name].address;
+
+        //TODO: update these on a 60 second interval loop
         this.userService.getBalance(this.market.coin.name, function(b) { that.market.coinBalance = b; that.market.setAvailableBalances(cAddress, bAddress); });
         this.userService.getBalance(this.market.base.name, function(b) { that.market.baseBalance = b; that.market.setAvailableBalances(cAddress, bAddress); });
         this.initWebsockets();

@@ -63,6 +63,16 @@ export interface TradeMessage extends MessageBase {
     timestamp: Date; // timestamp
     amount: number; // trade amount of market coin
     txIds: string[]; // the transactions ids for each step of the swap
-    hashedSecret: string; 
+    hashedSecret?: string;
     _id: string; //db id
 }
+
+//act: step 
+//represents a trade step has occured 
+export interface TradeMessage extends MessageBase {
+    _id: string; // _id of trade 
+    step: number; // 0-3
+    txId: string; // the transaction ids for the step of the swap
+    hashedSecret?: string;
+}
+
