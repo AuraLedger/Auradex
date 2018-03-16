@@ -47,7 +47,7 @@ export class UserService {
         this.setSettings(this.settings);
 
         this.accounts = this.storage.get('accounts') || {};
-        this.activeAccount = this.storage.get('activeAccount');
+        this.activeAccount = this.storage.get('activeAccount') || '';
         this.transactions = this.storage.get('transactions ') || [];
         //this.trades = this.storage.get('trades') || {};
 

@@ -19,6 +19,8 @@ export class Market {
     bidSum: number;
     askSum: number;
 
+    peers: number = 0;
+
     listings: StoredArrayMap = new StoredArrayMap('hash');
     offers: StoredArrayMap = new StoredArrayMap('hash');
     accepts: StoredArrayMap = new StoredArrayMap('hash');
@@ -32,23 +34,22 @@ export class Market {
     listingOffers = new OneToMany();
     listingAccepts = new OneToMany();
 
-    swapTxs = {}; //accept hash -> object with 4 swapTxs
-
     //if offers or accepts arrive before a listing, they are place here
     //TODO: periodically clean these out
     offerQueue = [];
     acceptQueue = [];
 
+    //TODO: use these to verify times, set for all objects
     myTimes = {};  //hash to timestamp
     
     cancelling: any = {};
     matched: any = {};
 
     //TODO: these are based on currect active account, need to refresh them on account switch (might not be necessary if multiple accounts are disabled)
-    coinBalance: number;
-    baseBalance: number;
-    coinAvailable: number;
-    baseAvailable: number;
+    coinBalance: number = 0;
+    baseBalance: number = 0;
+    coinAvailable: number = 0;
+    baseAvailable: number = 0;
 
     connected: boolean = false;
 

@@ -3,6 +3,9 @@ import { INode } from './INode';
 import * as SortedArray from 'sorted-array';
 import * as CryptoJS from 'crypto-js';
 
+declare var require: any
+const Web3 = require('web3');
+
 
 export class DexUtils {
     static verifyListing(listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
@@ -24,11 +27,11 @@ export class DexUtils {
         }
 
         //verify simple amounts
-        if(entry.amount <= 0) {
+        if(entry.amount.isLessThanOrEqualTo(0)) {
             fail('amount must be greater than 0');
         }
 
-        if(entry.price <= 0) {
+        if(entry.price.isLessThanOrEqualTo(0)) {
             fail('price must be greater than 0');
         }
 
@@ -36,12 +39,12 @@ export class DexUtils {
         DexUtils.verifyListingSig(entry, node, entry.address, () => {
             //verify bidder/asker has enough funds
             if(entry.act == 'bid') {
-                if ((entry.amount * entry.price) + node.getInitFee() > bal)
+                if (entry.amount.times(entry.price).plus(node.getInitFee()).isGreaterThan(bal))
                     fail('bidder is short on available funds')
                 else
                     success();
             } else if (entry.act == 'ask') {
-                if (entry.amount + node.getInitFee() > bal)
+                if (entry.amount.plus(node.getInitFee()).isGreaterThan(bal))
                     fail('asker is short on available funds')
                 else
                     success();
@@ -74,12 +77,12 @@ export class DexUtils {
         }
 
         //verify simple amounts
-        if(offer.amount <= 0) {
+        if(offer.amount.isLessThanOrEqualTo(0)) {
             fail('amount must be greater than 0');
             return;
         }
 
-        if(listing.price <= 0) {
+        if(listing.price.isLessThanOrEqualTo(0)) {
             fail('price must be greater than 0');
             return;
         }
@@ -152,8 +155,8 @@ export class DexUtils {
 
 
 
-    static sha1(message: string): string {
-        return CryptoJS.SHA1(message).toString(CryptoJS.enc.Utf8);
+    static sha3(message: string): string {
+        return Web3.utils.sha3(message);
     }
 
     static getListingSigMessage(listing: ListingMessage): string {
@@ -216,12 +219,12 @@ export class DexUtils {
         DexUtils.verifyGenSig(DexUtils.getAcceptSigMessage(accept), accept.hash, accept.sig, address, node, success, fail);
     }
 
-    private static verifyGenSig(msg: string, hash: string, sig: string, address: string, node: INode, success: () => void, fail: (err) => void) {
+    private static verifyGenSig(msg: string, hash: string | undefined, sig: string | undefined, address: string, node: INode, success: () => void, fail: (err) => void) {
         try {
-            var hsh = DexUtils.sha1(msg);
+            var hsh = DexUtils.sha3(msg);
             if(hsh != hash)
                 fail('hash did not match message')
-            else if(address != node.recover(hash, sig))
+            else if(address != node.recover(hash, sig || ''))
                 fail('invalid signature')
             else
                 success();
@@ -238,7 +241,7 @@ export class DexUtils {
 
     static verifySimpleOffer(offer: OfferMessage, node: INode, success: () => void, fail: (err) => void) {
         try {
-            if(offer.address != node.recover(offer.hash, offer.sig))
+            if(offer.address != node.recover(offer.hash || '', offer.sig || ''))
                 fail('invalid signature');
             else if (DexUtils.UTCTimestamp() - offer.timestamp > offer.duration)
                 fail('offer expired');
@@ -310,7 +313,7 @@ export class DexUtils {
                     offer.amount -= tradeAmount;
                     matches.push({
                         act: 'offer',
-                        listing: listing.hash,
+                        listing: listing.hash || '',
                         address: offer.address,
                         redeemAddress: offer.redeemAddress,
                         amount: tradeAmount,

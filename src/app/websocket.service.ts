@@ -22,17 +22,35 @@ export class WebsocketService {
         private cryptoService: CryptoService
     ) { }
 
+    disconnectAll() {
+        Object.keys(this.socks).filter(k => this.socks.hasOwnProperty(k)).forEach(k => {
+            this.socks[k].send('{"act":"disconnect"}');
+            this.socks[k].close();
+            this.socks[k].terminate();
+        });        
+        this.socks = {};
+    }
+
     connect(market: Market, cb?) {
         if(!this.socks.hasOwnProperty(market.id))
         {
             var ws = this.socks[market.id] = new WebSocket(market.webSocketServerURL);
-            var coinAddress = this.userService.getAccount()[market.coin.name].address;
-            var baseAddress = this.userService.getAccount()[market.base.name].address;
+            var coinAddress, baseAddress, account = this.userService.getAccount();
+
+            //TODO: reconnect after creating/changing account
+            if(account) {
+                coinAddress = this.userService.getAccount()[market.coin.name].address;
+                baseAddress = this.userService.getAccount()[market.base.name].address;
+
+                this.updateBookBalances(market.coin.name);
+                this.updateBookBalances(market.base.name);
+            }
 
             var that = this;
             ws.onmessage = function(evt) {
                 var json = JSON.parse(evt.data);
 
+                //TODO: add some indicator that your message has been recieved by the server
                 if(json.address == coinAddress || json.address == baseAddress)
                     return; // ignore your own messages if they are sent back to you
 
@@ -43,8 +61,9 @@ export class WebsocketService {
                     case 'offer': that.addOffer(json, market); break;
                     case 'accept': that.addAccept(json, market); break;
 
-                    //TODO: need really good fee estimation
+                        //TODO: need really good fee estimation
                     case 'setFeeRates': that.setFeeRates(json, market); break;
+                    case 'peers': market.peers = json.peers;
                     case 'err': that.userService.handleError(json.err); break; //should only come from server
                 } 
             };
@@ -161,8 +180,9 @@ export class WebsocketService {
                                         //TODO: need a way for users to manually input a transaction id to continue the swap in case the initial transaction is mined but this methed fails to return
                                         accept.txId = txId;
                                         market.accepts.add(accept, true); // save with txId, just in case
-                                        accept.hash = DexUtils.sha1(DexUtils.getAcceptSigMessage(accept));
-                                        accept.sig = myCoin.node.signMessage(accept.hash, key);
+                                        var msg = DexUtils.getAcceptSigMessage(accept);
+                                        accept.hash = DexUtils.sha3(msg);
+                                        accept.sig = myCoin.node.signMessage(msg, key);
                                         market.accepts.add(accept, true); // save again
                                         market.finishMyAccept(accept);
                                         that.getSocket(market, function(ws) {

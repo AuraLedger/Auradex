@@ -11,7 +11,7 @@
   </div>
   <div fxFlex fxLayout="column" fxLayoutAlign="start stretch" class="center-panel">
     <chart type="StockChart" [options]="options"></chart>
-    <div fxLayout.gt-sm="row" fxLayout="column">
+    <div *ngIf="account" fxLayout.gt-sm="row" fxLayout="column">
       <mat-accordion fxFlex="50" class="pad5">
         <mat-expansion-panel [expanded]="isSellPanelOpen">
           <mat-expansion-panel-header>
@@ -94,11 +94,11 @@
             <mat-panel-title fxLayoutAlign="start center">
               Bids&nbsp; 
               <mat-chip-list>
-                <mat-chip>{{bids.length}}</mat-chip>
+                <mat-chip>{{market.bid.array.length}}</mat-chip>
               </mat-chip-list>
             </mat-panel-title>
             <mat-panel-description>
-              Total: {{totalBids}} {{market.base}} 
+              Total: {{market.bidSum}} {{market.base.ticker}} 
             </mat-panel-description>
           </mat-expansion-panel-header>
 
@@ -129,11 +129,11 @@
             <mat-panel-title fxLayoutAlign="start center">
               Asks&nbsp;
               <mat-chip-list>
-                <mat-chip>{{bids.length}}</mat-chip>
+                <mat-chip>{{market.ask.array.length}}</mat-chip>
               </mat-chip-list>
             </mat-panel-title>
             <mat-panel-description>
-              Total: {{totalBids}} {{market.base}} 
+              Total: {{market.askSum}} {{market.coin.ticker}} 
             </mat-panel-description>
           </mat-expansion-panel-header>
 
@@ -163,7 +163,7 @@
       <mat-expansion-panel [expanded]="isActivePanelOpen">
         <mat-expansion-panel-header>
           <mat-panel-title>
-            Active Swaps
+            My Active Swaps
           </mat-panel-title>
           <mat-panel-description>
           </mat-panel-description>
@@ -176,12 +176,12 @@
             <div fxFlex="18">Price {{market.base.ticker}}</div>
             <div fxFlex="18">Size {{market.base.ticker}}</div>
             <div fxFlex="26" style="text-align: center">Time</div>
-            <div fxFlex="10">Cancel</div>
+            <div fxFlex="10">&nbsp;</div>
           </div>
 
-          <div *ngIf="market.trades.length == 0">No Orders.</div>
+          <div *ngIf="market.myAccepts.array.length == 0">No Orders.</div>
 
-          <div *ngFor="let bid of market.trades" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+          <div *ngFor="let bid of market.myAccepts.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
             <div fxFlex="10" style="text-align: center">{{bid.act == 'bid' ? 'Buy' : 'Sell'}}</div>
             <div fxFlex="18">{{bid.amount | number: '1.8-8'}}</div>
             <div fxFlex="18">{{bid.price | number: '1.8-8'}}</div>
@@ -197,7 +197,7 @@
       <mat-expansion-panel [expanded]="isRecentPanelOpen">
         <mat-expansion-panel-header>
           <mat-panel-title>
-            Recent Swaps 
+            My Pending Swaps 
           </mat-panel-title>
           <mat-panel-description>
           </mat-panel-description>
@@ -213,9 +213,9 @@
             <div fxFlex="10">Cancel</div>
           </div>
 
-          <div *ngIf="market.mine.length == 0">No Orders.</div>
+          <div *ngIf="market.offers.array.length == 0">No Orders.</div>
 
-          <div *ngFor="let bid of market.recentTrades" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+          <div *ngFor="let bid of market.myOffers.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
             <div fxFlex="10" style="text-align: center">{{bid.act == 'bid' ? 'Buy' : 'Sell'}}</div>
             <div fxFlex="18">{{bid.amount | number: '1.8-8'}}</div>
             <div fxFlex="18">{{bid.price | number: '1.8-8'}}</div>
@@ -247,9 +247,9 @@
             <div fxFlex="10">Cancel</div>
           </div>
 
-          <div *ngIf="market.mine.length == 0">No Orders.</div>
+          <div *ngIf="market.myListings.array.length == 0">No Orders.</div>
 
-          <div *ngFor="let bid of market.mine" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+          <div *ngFor="let bid of market.myListings.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
             <div fxFlex="10" style="text-align: center">{{bid.act == 'bid' ? 'Buy' : 'Sell'}}</div>
             <div fxFlex="18">{{bid.amount | number: '1.8-8'}}</div>
             <div fxFlex="18">{{bid.price | number: '1.8-8'}}</div>

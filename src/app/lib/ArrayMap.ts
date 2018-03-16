@@ -1,19 +1,22 @@
 export class ArrayMap {
-    array = [];
+    array: any[] = [];
     map = {};
+    protected keyProp: string = 'hash';
+    protected keyFunc: (item: any) => string = (item) => item[this.keyProp || 'hash'];
 
-    constructor(protected keyProp: string | null, protected keyFunc?: (item: any) => string) {
-        if(!this.keyFunc)
-            this.keyFunc = (item) => item[this.keyProp];
+
+    constructor(keyProp?: string, keyFunc?: (item: any) => string) {
+        this.keyProp = keyProp || this.keyProp;
+        this.keyFunc = keyFunc || this.keyFunc;
     }
 
-    static fromArray(arr: any[], keyProp: string | null, keyFunc?: (item: any) => string): ArrayMap {
+    static fromArray(arr: any[], keyProp?: string, keyFunc?: (item: any) => string): ArrayMap {
         var result = new ArrayMap(keyProp, keyFunc);
         arr.forEach(a => result.add(a));
         return result;
     }
 
-    static fromMap(mp: any, keyProp: string | null, keyFunc?: (item: any) => string): ArrayMap {
+    static fromMap(mp: any, keyProp?: string, keyFunc?: (item: any) => string): ArrayMap {
         var result = new ArrayMap(keyProp, keyFunc);
         Object.keys(mp).forEach(k => result.add(mp[k]));
         return result;

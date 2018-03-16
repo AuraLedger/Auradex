@@ -57,17 +57,6 @@ export class TradeComponent implements OnInit, AfterViewInit {
     isActivePanelOpen = true;
     isRecentPanelOpen = true;
 
-    bids:  Bid[] = [
-        {sum:0, amount: 2, price: 3, total: 6},
-        {sum:0, amount: 1, price: 1, total: 1},
-        {sum:0, amount: 1, price: 1, total: 1},
-        {sum:0, amount: 1, price: 1, total: 1},
-        {sum:0, amount: 1, price: 1, total: 1},
-    ];
-
-    displayedColumns = ['sum', 'total', 'amount', 'price'];
-    dataSource = new MatTableDataSource(this.bids);
-
     constructor(
         private route: ActivatedRoute, 
         private router: Router,
@@ -99,9 +88,9 @@ export class TradeComponent implements OnInit, AfterViewInit {
                         listing: listing.hash,
                         timestamp: DexUtils.UTCTimestamp()
                     };
-
-                    cancelMessage.hash = DexUtils.sha1(DexUtils.getCancelSigMessage(cancelMessage));
-                    cancelMessage.sig = coin.node.signMessage(cancelMessage.hash, key);
+                    var msg = DexUtils.getCancelSigMessage(cancelMessage);
+                    cancelMessage.hash = DexUtils.sha3(msg);
+                    cancelMessage.sig = coin.node.signMessage(msg, key);
 
                     ws.send(JSON.stringify(cancelMessage));
                     that.market.cancel(cancelMessage);
@@ -263,8 +252,9 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     if(doneCount == offers.length) {
                         if(entry.amount > entry.min)
                         {
-                            entry.hash = DexUtils.sha1(DexUtils.getListingSigMessage(entry));
-                            entry.sig = that.market.base.node.signMessage(entry.hash, key);
+                            var msg = DexUtils.getListingSigMessage(entry);
+                            entry.hash = DexUtils.sha3(msg);
+                            entry.sig = that.market.base.node.signMessage(msg, key);
                             ws.send(JSON.stringify(entry));
                             that.market.addMyListing(entry);
                         }
@@ -273,7 +263,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
                 offers.forEach((offer) => {
                     var listing = that.market.listings[offer.listing];
                     DexUtils.verifyListing(listing, that.market.coin.node, () => {
-                        offer.hash = DexUtils.sha1(DexUtils.getOfferSigMessage(offer));
+                        var msg = DexUtils.getOfferSigMessage(offer);
+                        offer.hash = DexUtils.sha3(msg);
                         offer.sig = that.market.base.node.signMessage(offer.hash, key);
                         ws.send(JSON.stringify(offer));
                         that.bidAmount = 0;
@@ -337,8 +328,9 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     if(doneCount == offers.length) {
                         if(entry.amount > entry.min)
                         {
-                            entry.hash = DexUtils.sha1(DexUtils.getListingSigMessage(entry));
-                            entry.sig = that.market.coin.node.signMessage(entry.hash, key);
+                            var msg = DexUtils.getListingSigMessage(entry);
+                            entry.hash = DexUtils.sha3(msg);
+                            entry.sig = that.market.coin.node.signMessage(msg, key);
                             ws.send(JSON.stringify(entry));
                             that.market.addMyListing(entry);
                         }
@@ -347,8 +339,9 @@ export class TradeComponent implements OnInit, AfterViewInit {
                 offers.forEach((offer) => {
                     var listing = that.market.listings[offer.listing];
                     DexUtils.verifyListing(listing, that.market.base.node, () => {
-                        offer.hash = DexUtils.sha1(DexUtils.getOfferSigMessage(offer));
-                        offer.sig = that.market.coin.node.signMessage(offer.hash, key);
+                        var msg = DexUtils.getOfferSigMessage(offer);
+                        offer.hash = DexUtils.sha3(msg);
+                        offer.sig = that.market.coin.node.signMessage(msg, key);
                         ws.send(JSON.stringify(offer));
                         that.askAmount = 0;
                         that.userService.showSuccess("Offer has been placed, waiting for lister to accept");
@@ -420,12 +413,11 @@ export class TradeComponent implements OnInit, AfterViewInit {
     initMarket() {
         var that = this;
         this.account = this.userService.getAccount();
-        var cAddress = this.userService.getAccount()[this.market.coin.name].address; 
-        var bAddress = this.userService.getAccount()[this.market.base.name].address;
-
-        //TODO: update these on a 60 second interval loop
-        this.userService.getBalance(this.market.coin.name, function(b) { that.market.coinAvailable += (b - that.market.coinBalance); that.market.coinBalance = b; });
-        this.userService.getBalance(this.market.base.name, function(b) { that.market.baseAvailable += (b - that.market.baseBalance); that.market.baseBalance = b; });
+        if(this.account) {
+            //TODO: update these on a 60 second interval loop
+            this.userService.getBalance(this.market.coin.name, function(b) { that.market.coinAvailable += (b - that.market.coinBalance); that.market.coinBalance = b; });
+            this.userService.getBalance(this.market.base.name, function(b) { that.market.baseAvailable += (b - that.market.baseBalance); that.market.baseBalance = b; });
+        }
         this.initWebsockets();
 
         this.askMinPercent = Number(this.localStorageService.get(this.market.coin.name + 'askMinPercent') || 50);

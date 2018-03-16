@@ -70,9 +70,8 @@ export class WalletComponent {
   send(coin) {
     let dialogRef = this.dialog.open(SendComponent, {
       data: {
-        coin: coin,
+        coin: this.coinService.coind[coin.name],
         account: this.account,
-        node: this.coinService.coind[coin.name].node,
         balance: this.balances[coin.name]
       },
       width: "600px"

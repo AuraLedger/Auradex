@@ -1,5 +1,5 @@
 export class OneToMany {
-    map: {}
+    map: any = {}
 
     constructor() {}
 

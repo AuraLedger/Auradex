@@ -1,8 +1,10 @@
 import { ArrayMap } from './ArrayMap';
+declare var require: any
+declare var global: any
 
 if (typeof localStorage === 'undefined' || localStorage === null) {
-  var LocalStorage = require('node-localstorage').LocalStorage;
-  localStorage = new LocalStorage('./AuradexLocalStorage');
+    var LocalStorage = require('node-localstorage').LocalStorage;
+    (<any>global).localStorage = new LocalStorage('./AuradexLocalStorage');
 }
 
 /**

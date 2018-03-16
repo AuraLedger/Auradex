@@ -9,6 +9,8 @@ export interface INode {
     getInitFee(): number;
     getRedeemFee(): number;
 
+    send(amount: number, from: string, to: string, privateKey: string, options: any, success: (txId: string) => void, fail: (err: any) => void): void;
+
     confirmTime: number;
 
     //swap actions

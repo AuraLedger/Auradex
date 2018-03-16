@@ -16,7 +16,7 @@
     </mat-form-field>
   </div>
 
-  <div fxLayout>
+  <div *ngIf="data.coin.node.type == 'Ether'" fxLayout>
  
     <mat-form-field fxFlex="0 0 90px">
       <input matInput color="warn" [(ngModel)]="gas" placeholder="Gas" type="number">
@@ -32,6 +32,8 @@
       <span matSuffix>gwei</span>
     </mat-form-field>
   </div>
+
+  <!--TODO add fee input field for bitcoin type coins-->
 
   <mat-form-field>
     <input matInput [(ngModel)]="password" placeholder="Enter account password" [type]="hide ? 'password' : 'text'">

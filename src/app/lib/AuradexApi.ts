@@ -16,13 +16,13 @@ export interface ListingMessage extends MessageBase {
     redeemAddress: string; 
 
     /** amount of COIN buying/selling, */
-    amount: number; 
+    amount: BigNumber; 
 
     /** minimum COIN amount to match this trade */
-    min: number; 
+    min: BigNumber; 
 
     /** price in BASE, */
-    price: number; 
+    price: BigNumber; 
 
     /**  UTC timestamp */
     timestamp: number; 
@@ -30,7 +30,7 @@ export interface ListingMessage extends MessageBase {
     /** hash of message (minus the sig, JSON stringified) */
     hash?: string; 
 
-    /** signature of hash  */
+    /** signature of message  */
     sig?: string; 
 }
 
@@ -47,7 +47,7 @@ export interface CancelMessage extends MessageBase {
     /** hash of message (minus the sig, JSON stringified) */
     hash?: string; 
 
-    /** signature of hash (use listing address to verify) */
+    /** signature of message (use listing address to verify) */
     sig?: string; 
 
 }
@@ -72,15 +72,15 @@ export interface OfferMessage extends MessageBase {
     duration: number; 
 
     /**  trade amount of COIN, must be greater than the listers set minimum */
-    amount: number; 
+    amount: BigNumber; 
 
     /**  minimum trade amount of COIN, lister can accept partial amount if they have multiple offers */
-    min: number;
+    min: BigNumber;
 
     /** hash of message (JSON stringified) */
     hash?: string; 
 
-    /**  signature of hash  */
+    /**  signature of message  */
     sig?: string; 
 
     /** txId of swap participate, NOT PART OF HASH, is not sent with original message, used to track swap progress if this is accepted */
@@ -96,7 +96,7 @@ export interface AcceptMessage extends MessageBase {
     offer: string; 
 
     /**  trade amount of COIN, must be greater than the offers set minimum */
-    amount: number; 
+    amount: BigNumber; 
     
     /**  20 byte ripemd hash of 32 byte secret */
     hashedSecret: string; 
@@ -110,7 +110,7 @@ export interface AcceptMessage extends MessageBase {
     /**  hash of message */
     hash?: string; 
 
-    /**  signature of hash */
+    /**  signature of message */
     sig?: string; 
 
 }
@@ -122,7 +122,7 @@ export interface SwapInfo {
     secret: string;
     initiator: string;
     participant: string;
-    value: number;
+    value: BigNumber;
     emptied: boolean;
     state: number; // 0, 1, 2 = empty, initiated, participated
 }
