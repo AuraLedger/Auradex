@@ -1,4 +1,5 @@
 //interfaces for messages that are sent via websockets
+import { BigNumber } from 'bignumber.js';
 
 export interface MessageBase {
     /**  message action */
@@ -113,6 +114,14 @@ export interface AcceptMessage extends MessageBase {
     /**  signature of message */
     sig?: string; 
 
+}
+
+/** act: setFeeRates
+ * fee rates from the relay server
+ */
+export interface FeeRateMessage extends MessageBase {
+    coinFeeRate: BigNumber;
+    baseFeeRate: BigNumber;
 }
 
 export interface SwapInfo {

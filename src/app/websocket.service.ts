@@ -4,6 +4,7 @@ import { Market } from './market';
 import { UserService } from './user.service';
 import { CoinService } from './coin.service';
 import { ListingMessage, DexUtils, CancelMessage, OfferMessage, AcceptMessage, SwapInfo, INode } from './lib/libauradex';
+import { BigNumber } from 'bignumber.js';
 
 import { LocalStorageService } from 'angular-2-local-storage';
 import { CryptoService } from './crypto.service';
@@ -54,6 +55,8 @@ export class WebsocketService {
                 if(json.address == coinAddress || json.address == baseAddress)
                     return; // ignore your own messages if they are sent back to you
 
+                that.setNumbers(json);
+
                 switch(json.act) {
                     case 'bid': that.addListing(json, market); break; 
                     case 'ask': that.addListing(json, market); break; 
@@ -73,26 +76,48 @@ export class WebsocketService {
         }
     }
 
+    /**
+     * Converts strings to BigNumbers on incoming AuradexApi messages
+     */
+    private setNumbers(json: any): void {
+        this.setAttributeNumber(json, 'amount');
+        this.setAttributeNumber(json, 'min');
+        this.setAttributeNumber(json, 'price');
+        this.setAttributeNumber(json, 'coinFeeRate');
+        this.setAttributeNumber(json, 'baseFeeRate');
+    }
+
+    private setAttributeNumber(json: any, attr: string) {
+        try {
+        if(json.hasOwnProperty(attr))
+            json[attr] = new BigNumber(json[attr]);
+        } catch(error) {
+            //log but don't prevent other conversions
+            console.log('error convering attribute ' + attr + ' on act ' + json.act + ' with value ' + json[attr]);
+            console.log(error);
+        }
+    }
+
     //TODO: attempt to restore listings/offers when reconnecting, but factor in current book balances and coin balances
     updateBookBalances(coin: string) {
         var that = this;
         var marketIds = Object.keys(this.socks).filter(k => that.socks.hasOwnProperty(k));
-        var sum = 0;
+        var sum = new BigNumber(0);
 
         marketIds.forEach(id => {
             var market = that.coinService.marketd[id];
             if(market.coin.name == coin)
-                sum += market.getCoinBookBalance();
+                sum = sum.plus(market.getCoinBookBalance());
             else if (market.base.name == coin)
-                sum += market.getBaseBookBalance();
+                sum = sum.plus(market.getBaseBookBalance());
         });
 
         marketIds.forEach(id => {
             var market = that.coinService.marketd[id];
             if(market.coin.name == coin)
-                market.coinAvailable = Math.max(market.coinBalance - sum, 0);
+                market.coinAvailable = BigNumber.maximum(market.coinBalance.minus(sum), 0);
             else if (market.base.name == coin)
-                market.baseAvailable = Math.max(market.baseBalance - sum, 0);
+                market.baseAvailable = BigNumber.maximum(market.baseBalance.minus(sum), 0);
         });
 
     }

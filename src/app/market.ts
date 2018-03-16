@@ -1,5 +1,6 @@
 import { Coin, CoinConfig } from './coin';
 import * as SortedArray from 'sorted-array';
+import { BigNumber } from 'bignumber.js';
 
 import { ListingMessage, OfferMessage, AcceptMessage, CancelMessage, DexUtils, StoredArrayMap, ArrayMap, OneToMany, INode } from './lib/libauradex';
 
@@ -46,16 +47,16 @@ export class Market {
     matched: any = {};
 
     //TODO: these are based on currect active account, need to refresh them on account switch (might not be necessary if multiple accounts are disabled)
-    coinBalance: number = 0;
-    baseBalance: number = 0;
-    coinAvailable: number = 0;
-    baseAvailable: number = 0;
+    coinBalance: BigNumber = new BigNumber(0);
+    baseBalance: BigNumber = new BigNumber(0);
+    coinAvailable: BigNumber = new BigNumber(0);
+    baseAvailable: BigNumber = new BigNumber(0);
 
     connected: boolean = false;
 
     //TODO: get this from historical blockchain analyzer
-    price: number;
-    change: number;
+    price: number = 1;
+    change: number = 0.1;
 
     mySortProperty: string = 'timestamp';
     mySortDir: boolean = false;
@@ -139,14 +140,14 @@ export class Market {
         }
     }
 
-    getCoinBookBalance(): number {
+    getCoinBookBalance(): BigNumber {
         var that = this;
         var fee = this.coin.node.getInitFee();
-        var sum = 0;
+        var sum: BigNumber = new BigNumber(0);
 
         this.myListings.array.forEach(l => {
             if(l.act == 'ask') {
-                sum += that.getListingRemaining(l) + fee;
+                sum = sum.plus(that.getListingRemaining(l)).plus(fee);
             }
         });
 
@@ -157,7 +158,7 @@ export class Market {
                     var amount = o.amount;
                     if(that.offerAccept.hasOwnProperty(o.hash))
                         amount = that.offerAccept[o.hash].amount;
-                    sum += amount + fee;
+                    sum = sum.plus(amount).plus(fee);
                 }
             }
         });
@@ -165,14 +166,14 @@ export class Market {
         return sum;
     }
 
-    getBaseBookBalance(): number {
+    getBaseBookBalance(): BigNumber {
         var that = this;
         var fee = this.base.node.getInitFee();
-        var sum = 0;
+        var sum: BigNumber = new BigNumber(0);
 
         this.myListings.array.forEach(l => {
             if(l.act == 'bid') {
-                sum += that.getListingRemaining(l) * l.price + fee;
+                sum = sum.plus(that.getListingRemaining(l).times(l.price)).plus(fee);
             }
         });
 
@@ -183,7 +184,7 @@ export class Market {
                     var amount = o.amount;
                     if(that.offerAccept.hasOwnProperty(o.hash))
                         amount = that.offerAccept[o.hash].amount;
-                    sum += amount * l.price + fee;
+                    sum = sum.plus(amount.times(l.price)).plus(fee);
                 }
             }
         });
@@ -291,15 +292,18 @@ export class Market {
     getPotentialAcceptAmount(offer) {
         var listing = this.listings.get(offer.listing);
         var remaining = this.getListingRemaining(listing);
-        if(remaining > listing.min && remaining > offer.min)
-            return Math.min(offer.amount, remaining);
+        if(remaining.isGreaterThan(listing.min) && remaining.isGreaterThan(offer.min))
+            return BigNumber.minimum(offer.amount, remaining);
         return 0;
     }
 
-    getListingRemaining (listing: ListingMessage): number {
+    getListingRemaining (listing: ListingMessage): BigNumber {
         var accepts = this.listingAccepts.get(listing.hash) || [];
-        var accepted = accepts.reduce((sum: number, accept: AcceptMessage) => sum += accept.amount, 0) || 0;
-        return listing.amount - accepted;
+        var accepted = new BigNumber(accepts.reduce((sum: BigNumber, accept: AcceptMessage) => {
+            sum = sum.plus(accept.amount);
+            return sum;
+        }, 0) || 0);
+        return listing.amount.minus(accepted);
     }
 
     addAccept(accept: AcceptMessage): boolean {

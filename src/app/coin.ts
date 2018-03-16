@@ -1,4 +1,5 @@
 import { INode, NodeFactory, NodeConfig } from './lib/libauradex';
+import { BigNumber } from 'bignumber.js';
 
 export class Coin {
     name: string;
@@ -22,12 +23,12 @@ export class Coin {
         localStorage.setItem(this.name + 'blockHeight', ''+num);
     }
 
-    setBalance(accountName: string, balance: number) {
+    setBalance(accountName: string, balance: BigNumber) {
         this.balances[accountName] = balance;
         this.balanceTimes[accountName] = new Date();
     }
 
-    getBalance(accountName: string): number {
+    getBalance(accountName: string): BigNumber {
         return this.balances[accountName];
     }
 

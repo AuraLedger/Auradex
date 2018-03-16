@@ -1,6 +1,7 @@
 import { Component, Inject, EventEmitter} from '@angular/core';
 import { MatDialog, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material';
 import { Buffer } from 'buffer';
+import { BigNumber } from 'bignumber.js';
 
 import { UserService } from '../user.service';
 
@@ -12,13 +13,13 @@ import { UserService } from '../user.service';
 })
 export class SendComponent {
 
-    dest;
-    amount;
-    gas;
+    dest: string;
+    amount: number;
+    gas: number;
     gasLimit = 200000;
-    password;
-    fee;
-    hide = true;
+    password: string;
+    fee: number;
+    hide: boolean = true;
 
     constructor(   
         public dialogRef: MatDialogRef<SendComponent >,
@@ -46,16 +47,17 @@ export class SendComponent {
     send() {
         var that = this;
         var pass = this.password;
+        this.dest = this.dest.trim();
         this.password = '';
         var privkey = this.userService.decryptPrivateKey(this.data.coin.name, pass);
         var config: any = {};
         if(this.data.coin.node.type == 'Ether') {
-            config.gasPrice = this.gas;
+            config.gasPrice = new BigNumber(this.gas);
             config.gasLimit = this.gasLimit;
         } else {
-            config.fee = this.fee;
+            config.fee = new BigNumber(this.fee);
         }
-        this.data.coin.node.send(this.amount, this.userService.getAccount()[this.data.coin.name].address, this.dest, privkey, config, (txId) => {
+        this.data.coin.node.send(new BigNumber(this.amount), this.userService.getAccount()[this.data.coin.name].address, this.dest, privkey, config, (txId) => {
             that.userService.showSuccess("Transaction sent " + txId);
 
             if(that.data.coin.node.type == 'Ether')
@@ -70,7 +72,7 @@ export class SendComponent {
                 coin: that.data.coin.name,
                 from: that.data.account[that.data.coin.name].address,
                 to: that.dest,
-                amount: that.amount,
+                amount: new BigNumber(that.amount),
                 txHash: txId 
             };
 

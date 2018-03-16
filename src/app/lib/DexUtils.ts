@@ -1,5 +1,6 @@
 import { ListingMessage, CancelMessage, OfferMessage, AcceptMessage} from './AuradexApi';
 import { INode } from './INode';
+import { BigNumber } from 'bignumber.js';
 import * as SortedArray from 'sorted-array';
 import * as CryptoJS from 'crypto-js';
 
@@ -91,12 +92,12 @@ export class DexUtils {
         DexUtils.verifyOfferSig(offer, node, offer.address, () => {
             //verify bidder/asker has enough funds
             if(listing.act == 'ask') {
-                if ((offer.amount * listing.price) + node.getInitFee() > bal)
+                if ((offer.amount.times(listing.price)).plus(node.getInitFee()).isGreaterThan(bal))
                     fail('bidder is short on available funds')
                 else
                     success();
             } else if (listing.act == 'bid') {
-                if (offer.amount + node.getInitFee() > bal)
+                if (offer.amount.plus(node.getInitFee()).isGreaterThan(bal))
                     fail('asker is short on available funds')
                 else
                     success();
@@ -127,11 +128,11 @@ export class DexUtils {
         }
 
         //verify simple amounts
-        if(offer.amount <= 0) {
+        if(offer.amount.isLessThanOrEqualTo(0)) {
             fail('amount must be greater than 0');
         }
 
-        if(listing.price <= 0) {
+        if(listing.price.isLessThanOrEqualTo(0)) {
             fail('price must be greater than 0');
         }
 
@@ -139,12 +140,12 @@ export class DexUtils {
         DexUtils.verifyOfferSig(offer, node, offer.address, () => {
             //verify bidder/asker has enough funds
             if(listing.act == 'bid') {
-                if ((accept.amount * listing.price) + node.getInitFee() > bal)
+                if (accept.amount.times(listing.price).plus(node.getInitFee()).isGreaterThan(bal))
                     fail('bidder is short on available funds')
                 else
                     success();
             } else if (listing.act == 'ask') {
-                if (accept.amount + node.getInitFee() > bal)
+                if (accept.amount.plus(node.getInitFee()).isGreaterThan(bal))
                     fail('asker is short on available funds')
                 else
                     success();
@@ -264,24 +265,6 @@ export class DexUtils {
         return Math.floor((new Date()).getTime() / 1000);
     }
 
-    //TODO: prevent placing order if when not enough redeeming funds
-
-    static verifyRedeemBalanceFull(node: INode, bal: number, success: () => void, fail: (err) => void) {
-        if(bal < node.getRedeemFee())
-            fail('Not enough funds to redeem');
-        else
-            success();
-    }
-
-    static verifyRedeemBalance(address: string, node: INode, bookBalance: number, success: () => void, fail: (err) => void) {
-        node.getBalance(address, function(err, bal) {
-            if(err)
-                fail(err);
-            else
-                DexUtils.verifyRedeemBalanceFull(node, bal - bookBalance, success, fail);
-        });
-    }
-
     static removeFromBook(book: SortedArray, obj: CancelMessage): ListingMessage | null {
         for(var i = 0; i < book.array.length; i++) {
             if(book.array[i].hash == obj.hash) {
@@ -303,14 +286,14 @@ export class DexUtils {
                 if(listing.redeemAddress == offer.address) //if you run into your own order, stop searching
                     return matches;
 
-                var listingSize = listing.amount * listing.price;
-                var offerSize = offer.amount * offer.price;
+                var listingSize = listing.amount.times(listing.price);
+                var offerSize = offer.amount.times(offer.price);
                 if(listing.amount >= offer.min && offer.amount >= listing.min)
                 {
                     //add match
-                    var tradeAmount = Math.min(offer.amount, listing.amount);
-                    var newMin = Math.max(offer.min, listing.min);
-                    offer.amount -= tradeAmount;
+                    var tradeAmount = BigNumber.minimum(offer.amount, listing.amount);
+                    var newMin = BigNumber.maximum(offer.min, listing.min);
+                    offer.amount = offer.amount.minus(tradeAmount);
                     matches.push({
                         act: 'offer',
                         listing: listing.hash || '',

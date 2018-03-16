@@ -1,15 +1,16 @@
 import { ListingMessage, OfferMessage, AcceptMessage, SwapInfo } from './AuradexApi';
+import { BigNumber } from 'bignumber.js';
 
 export interface INode {
     getBalance(address: string, handler: any): void;
     recover(msg: string, sig: string): string;
     applyUserSettings(settings: any): void;
     signMessage(msg: string, privateKey: string): string;
-    setFeeRate(fee: number): void;
-    getInitFee(): number;
-    getRedeemFee(): number;
+    setFeeRate(fee: BigNumber): void;
+    getInitFee(): BigNumber;
+    getRedeemFee(): BigNumber;
 
-    send(amount: number, from: string, to: string, privateKey: string, options: any, success: (txId: string) => void, fail: (err: any) => void): void;
+    send(amount: BigNumber, from: string, to: string, privateKey: string, options: any, success: (txId: string) => void, fail: (err: any) => void): void;
 
     confirmTime: number;
 

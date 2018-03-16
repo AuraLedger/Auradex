@@ -4,10 +4,12 @@ import { Router, ActivatedRoute } from '@angular/router';
 import * as Highcharts from 'highcharts/highstock';
 import { ChartModule } from 'angular2-highcharts'; 
 import { LocalStorageService } from 'angular-2-local-storage';
+import { BigNumber } from 'bignumber.js';
 
 import { UserService } from '../user.service';
 import { CoinService } from '../coin.service';
 import { WebsocketService } from '../websocket.service';
+import { BigNumberPipe } from '../big-number.pipe';
 
 import { Market } from '../market';
 import { Coin } from '../coin';
@@ -142,8 +144,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     askAmountChanged(val) {
         if(!val) return;
-        if(val > this.market.coinAvailable) 
-            val = this.market.coinAvailable;
+        if(this.market.coinAvailable.isLessThan(val || 0)) 
+            val = this.market.coinAvailable.toNumber();
         if(val < 0)
             val = 0;
         this.askAmount = val;
@@ -151,7 +153,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
     }
 
     validateAskInputs(): string {
-        if(this.askAmount > this.market.coinAvailable)
+        if(this.market.coinAvailable.isLessThan(this.askAmount || 0))
             return 'Not enough funds.';
         if(this.askMin > this.askAmount)
             return 'Min cannot be greater than amount';
@@ -172,7 +174,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
             val = 0;
         val = Number(val.toFixed(8));
         this.bidMin = val;
-        this.setAskMinPercent(this.bidMin * 100 / this.bidAmount);
+        this.setBidMinPercent(this.bidMin * 100 / this.bidAmount);
     }
 
     calcBidMin() {
@@ -186,22 +188,22 @@ export class TradeComponent implements OnInit, AfterViewInit {
             val = 100;
         if(val < 0)
             val = 0;
-        this.setAskMinPercent(val);
-        this.calcAskMin();
+        this.setBidMinPercent(val);
+        this.calcBidMin();
     }
 
     bidAmountChanged(val) {
         if(!val) return;
-        if(val > this.market.baseAvailable)
-            val = this.market.baseAvailable;
+        if(this.market.baseAvailable.isLessThan(val || 0))
+            val = this.market.baseAvailable.toNumber();
         if(val < 0)
             val = 0;
         this.bidAmount = val;
-        this.calcAskMin();
+        this.calcBidMin();
     }
 
     validateBidInputs(): string {
-        if(this.bidAmount > this.market.baseAvailable)
+        if(this.market.baseAvailable.isLessThan(this.bidAmount || 0))
             return 'Not enough funds.';
         if(this.bidMin > this.bidAmount)
             return 'Min cannot be greater than amount';
@@ -210,7 +212,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     //TODO: make sure they don't also have an ask with a better price
     placeBid() {
-        if(this.bidAmount * this.bidPrice > this.market.baseAvailable){
+        var size: BigNumber = (new BigNumber(Number(this.bidAmount || 0))).times(this.bidPrice);
+        if(size.isGreaterThan(this.market.baseAvailable)) {
             this.userService.showError('not enough funds');
             return;
         } 
@@ -220,21 +223,21 @@ export class TradeComponent implements OnInit, AfterViewInit {
             return;
         }
 
-        if(this.bidAmount * this.bidPrice < this.market.base.node.getInitFee() * 10) {
-            this.userService.showError('amount is too small, must be worth atleast ' + (this.market.base.node.getInitFee() * 10).toFixed(8) + ' ' + this.market.base.ticker + ' (10 times the average network fee');
+        if(size.isLessThan(this.market.base.node.getInitFee().times(10))) {
+            this.userService.showError('amount is too small, must be worth atleast ' + this.market.base.node.getInitFee().times(10).toFixed(8) + ' ' + this.market.base.ticker + ' (10 times the average network fee');
             return;
         }
 
-        if(this.bidMin * this.bidPrice < this.market.base.node.getInitFee() * 10)
-            this.bidMin = this.market.base.node.getInitFee() * 10 / this.bidPrice;
+        if(this.market.base.node.getInitFee().times(10).isGreaterThan(this.bidMin * this.bidPrice))
+            this.bidMin = this.market.base.node.getInitFee().times(10).div(this.bidPrice).toNumber();
 
         var entry: ListingMessage = {
             act: 'bid',
-            price: this.bidPrice,
-            amount: this.bidAmount,
+            price: new BigNumber(this.bidPrice),
+            amount: new BigNumber(this.bidAmount),
             address: this.userService.getAccount()[this.market.base.name].address,
             redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
-            min: this.bidMin,
+            min: new BigNumber(this.bidMin),
             timestamp: DexUtils.UTCTimestamp(),
         };
 
@@ -273,7 +276,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                         allDone(true);
                     }, (error) => {
                         that.userService.handleError(error);
-                        entry.amount += offer.amount; //add unused maount back onto offer
+                        entry.amount = entry.amount.plus(offer.amount); //add unused maount back onto offer
                         allDone(true);
                     });
                 }); 
@@ -284,7 +287,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     //TODO: make sure they don't also have an bid with a better price
     placeAsk() {
-        if(this.askAmount  > this.market.coinAvailable) {
+        if(this.market.coinAvailable.isLessThan(this.askAmount)) {
             this.userService.showError('not enough funds');
             return;
         }
@@ -294,23 +297,22 @@ export class TradeComponent implements OnInit, AfterViewInit {
             return;
         }
 
-
-        if(this.askAmount * this.askPrice < this.market.base.node.getInitFee() * 10) {
-            this.userService.showError('amount is too small, must be worth atleast ' + (this.market.base.node.getInitFee() * 10).toFixed(8) + ' ' + this.market.base.ticker + ' (10 times the average network fee)');
+        if(this.market.base.node.getInitFee().times(10).isGreaterThan(this.askAmount * this.askPrice)) {
+            this.userService.showError('amount is too small, must be worth atleast ' + this.market.base.node.getInitFee().times(10).toFixed(8) + ' ' + this.market.base.ticker + ' (10 times the average network fee)');
             return;
         }
 
-        if(this.askMin * this.askPrice < this.market.base.node.getInitFee() * 10) {
-            this.askMin = this.market.base.node.getInitFee() * 10 / this.askPrice;
+        if(this.market.base.node.getInitFee().times(10).isGreaterThan(this.askMin * this.askPrice)) {
+            this.askMin = this.market.base.node.getInitFee().times(10).div(this.askPrice).toNumber();
         }
 
         var entry: ListingMessage = {
             act: 'ask',
-            price: this.askPrice,
-            amount: this.askAmount,
+            price: new BigNumber(this.askPrice),
+            amount: new BigNumber(this.askAmount),
             address: this.userService.getAccount()[this.market.coin.name].address,
             redeemAddress: this.userService.getAccount()[this.market.base.name].address,
-            min: this.askMin,
+            min: new BigNumber(this.askMin),
             timestamp: DexUtils.UTCTimestamp(),
         };
 
@@ -349,7 +351,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                         allDone(true);
                     }, (error) => {
                         that.userService.handleError(error);
-                        entry.amount += offer.amount; //add unused maount back onto offer
+                        entry.amount = entry.amount.plus(offer.amount); //add unused maount back onto offer
                         allDone(true);
                     });
                 }); 
@@ -415,8 +417,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
         this.account = this.userService.getAccount();
         if(this.account) {
             //TODO: update these on a 60 second interval loop
-            this.userService.getBalance(this.market.coin.name, function(b) { that.market.coinAvailable += (b - that.market.coinBalance); that.market.coinBalance = b; });
-            this.userService.getBalance(this.market.base.name, function(b) { that.market.baseAvailable += (b - that.market.baseBalance); that.market.baseBalance = b; });
+            this.userService.getBalance(this.market.coin.name, function(b) { that.market.coinAvailable = that.market.coinAvailable.plus(b).minus(that.market.coinBalance); that.market.coinBalance = b; });
+            this.userService.getBalance(this.market.base.name, function(b) { that.market.baseAvailable = that.market.baseAvailable.plus(b).minus(that.market.baseBalance); that.market.baseBalance = b; });
         }
         this.initWebsockets();
 

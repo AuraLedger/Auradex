@@ -49,6 +49,7 @@ import { ManageAccountComponent } from './manage-account/manage-account.componen
 import { DeleteComponent } from './delete/delete.component';
 import { PasswordComponent } from './password/password.component';
 import { AreYouSureComponent } from './are-you-sure/are-you-sure.component';
+import { BigNumberPipe } from './big-number.pipe';
 
 declare var require: any
 
@@ -69,6 +70,7 @@ declare var require: any
         DeleteComponent,
         PasswordComponent,
         AreYouSureComponent,
+        BigNumberPipe,
     ],
     imports: [
         BrowserModule,
