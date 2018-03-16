@@ -12,7 +12,7 @@ import { WebsocketService } from '../websocket.service';
 import { Market } from '../market';
 import { Coin } from '../coin';
 
-import { EntryMessage, DexUtils, CancelMessage } from '../lib/libauradex';
+import { ListingMessage, DexUtils, CancelMessage, INode, ArrayMap } from '../lib/libauradex';
 
 @Component({
     selector: 'app-trade', 
@@ -85,17 +85,31 @@ export class TradeComponent implements OnInit, AfterViewInit {
             this.markets.push(this.coinService.marketd[mKeys[i]]);
     }
 
-    cancel(bid: EntryMessage): void {
+    cancel(listing: ListingMessage): void {
         var that = this;
-        this.userService.areYouSure('Cancel', 'Are you sure?', function() {
-            that.websocketService.getSocket(that.market, function(ws) {
-                var cancelMessage: CancelMessage = {
-                    act: 'cancel',
-                    entryType: bid.act,
-                    _id: bid._id,
-                    price: bid.price
-                };
-                ws.send(JSON.stringify(cancelMessage));
+        var coin = listing.act == 'bid' ? this.market.base : this.market.coin;
+        //TODO: make sure there are no active swaps for this listing
+        that.userService.getPrivateKey(coin.name, (key) => {
+            that.market.cancelling[listing.hash] = true; //TODO: add to market and check before accepting trades
+            that.userService.areYouSure('Cancel', 'Are you sure?', function() {
+                that.websocketService.getSocket(that.market, function(ws) {
+
+                    var cancelMessage: CancelMessage = {
+                        act: 'cancel',
+                        listing: listing.hash,
+                        timestamp: DexUtils.UTCTimestamp()
+                    };
+
+                    cancelMessage.hash = DexUtils.sha1(DexUtils.getCancelSigMessage(cancelMessage));
+                    cancelMessage.sig = coin.node.signMessage(cancelMessage.hash, key);
+
+                    ws.send(JSON.stringify(cancelMessage));
+                    that.market.cancel(cancelMessage);
+                    delete that.market.cancelling[listing.hash];
+                });
+            }, () => {
+                delete that.market.cancelling[listing.hash];
+                //TODO: check for trade offers that may have came in
             });
         });
     }
@@ -205,94 +219,150 @@ export class TradeComponent implements OnInit, AfterViewInit {
         return null;
     }
 
-
-
     //TODO: make sure they don't also have an ask with a better price
     placeBid() {
-        if(this.bidAmount * this.bidPrice > this.market.baseAvailable)
-            this.bidAmount = this.market.baseAvailable / this.bidPrice;
+        if(this.bidAmount * this.bidPrice > this.market.baseAvailable){
+            this.userService.showError('not enough funds');
+            return;
+        } 
 
-        var entry = {
+        if(this.market.coinAvailable < this.market.coin.node.getRedeemFee()) {
+            this.userService.showError('You need alteast ' + this.market.coin.node.getRedeemFee().toFixed(8) + ' ' + this.market.coin.ticker + ' for the redeem transaction to complete this trade');
+            return;
+        }
+
+        if(this.bidAmount * this.bidPrice < this.market.base.node.getInitFee() * 10) {
+            this.userService.showError('amount is too small, must be worth atleast ' + (this.market.base.node.getInitFee() * 10).toFixed(8) + ' ' + this.market.base.ticker + ' (10 times the average network fee');
+            return;
+        }
+
+        if(this.bidMin * this.bidPrice < this.market.base.node.getInitFee() * 10)
+            this.bidMin = this.market.base.node.getInitFee() * 10 / this.bidPrice;
+
+        var entry: ListingMessage = {
             act: 'bid',
             price: this.bidPrice,
             amount: this.bidAmount,
             address: this.userService.getAccount()[this.market.base.name].address,
             redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
             min: this.bidMin,
-            nonce: this.market.base.getNonce(this.userService.activeAccount),
-            sig: ''
+            timestamp: DexUtils.UTCTimestamp(),
         };
 
+        //find matches
+        var offers = DexUtils.findMatches(this.market.ask.array, entry, true);
 
-        var msg = DexUtils.getSigMessage(entry); 
+        //verify listings and broadcast offers
+        var doneCount = 0;
         var that = this;
         this.userService.getPrivateKey(this.market.base.name, function(key) {
-            var sig = this.market.base.node.signMessage(msg, key);
-            entry.sig = sig;
-
-            DexUtils.verifyEntryFull(entry, that.market.base.node, that.market.baseAvailable, function() {
-
-                DexUtils.verifyRedeemBalanceFull(that.market.coin.node, that.market.coinAvailable, function() {
-
-                    that.websocketService.getSocket(that.market, function(ws) {
-                        ws.send(JSON.stringify(entry));
-                        if(entry.act == 'bid')
-                            that.bidAmount = 0;
-                        else
-                            that.askAmount = 0;
-                        that.userService.showSuccess("Order has been placed, it may take a few seconds to show in the list");
+            that.websocketService.getSocket(that.market, function(ws) {
+                var allDone = (increment: boolean) => {
+                    if(increment) 
+                        doneCount++;
+                    if(doneCount == offers.length) {
+                        if(entry.amount > entry.min)
+                        {
+                            entry.hash = DexUtils.sha1(DexUtils.getListingSigMessage(entry));
+                            entry.sig = that.market.base.node.signMessage(entry.hash, key);
+                            ws.send(JSON.stringify(entry));
+                            that.market.addMyListing(entry);
+                        }
+                    }
+                };
+                offers.forEach((offer) => {
+                    var listing = that.market.listings[offer.listing];
+                    DexUtils.verifyListing(listing, that.market.coin.node, () => {
+                        offer.hash = DexUtils.sha1(DexUtils.getOfferSigMessage(offer));
+                        offer.sig = that.market.base.node.signMessage(offer.hash, key);
+                        ws.send(JSON.stringify(offer));
+                        that.bidAmount = 0;
+                        that.userService.showSuccess("Offer has been placed, waiting for lister to accept");
+                        that.market.addMyOffer(offer);
+                        allDone(true);
+                    }, (error) => {
+                        that.userService.handleError(error);
+                        entry.amount += offer.amount; //add unused maount back onto offer
+                        allDone(true);
                     });
-                }, function(err) {
-                    that.userService.showError(err);
-                });
-            }, function(err) {
-                that.userService.showError(err);
+                }); 
+                allDone(false); //incase 0 offers found
             });
-        });  
+        });
     }
 
     //TODO: make sure they don't also have an bid with a better price
     placeAsk() {
-        if(this.askAmount * this.askPrice > this.market.coinAvailable)
-            this.askAmount = (this.market.coinAvailable) / this.askPrice;
+        if(this.askAmount  > this.market.coinAvailable) {
+            this.userService.showError('not enough funds');
+            return;
+        }
 
-        var entry = {
+        if(this.market.baseAvailable < this.market.base.node.getRedeemFee()) {
+            this.userService.showError('You need alteast ' + this.market.base.node.getRedeemFee().toFixed(8) + ' ' + this.market.base.ticker + ' for the redeem transaction to complete this trade');
+            return;
+        }
+
+
+        if(this.askAmount * this.askPrice < this.market.base.node.getInitFee() * 10) {
+            this.userService.showError('amount is too small, must be worth atleast ' + (this.market.base.node.getInitFee() * 10).toFixed(8) + ' ' + this.market.base.ticker + ' (10 times the average network fee)');
+            return;
+        }
+
+        if(this.askMin * this.askPrice < this.market.base.node.getInitFee() * 10) {
+            this.askMin = this.market.base.node.getInitFee() * 10 / this.askPrice;
+        }
+
+        var entry: ListingMessage = {
             act: 'ask',
             price: this.askPrice,
             amount: this.askAmount,
             address: this.userService.getAccount()[this.market.coin.name].address,
             redeemAddress: this.userService.getAccount()[this.market.base.name].address,
             min: this.askMin,
-            nonce: this.market.coin.getNonce(this.userService.activeAccount),
-            sig: ''
+            timestamp: DexUtils.UTCTimestamp(),
         };
 
+        //find matches
+        var offers = DexUtils.findMatches(this.market.bid.array, entry, false);
 
-        var msg = DexUtils.getSigMessage(entry); 
+        //verify listings and broadcast offers
+        var doneCount = 0;
         var that = this;
-        this.userService.getPrivateKey(that.market.coin.name, function(key) {
-            var sig = that.market.coin.node.signMessage(msg, key);
-            entry.sig = sig;
-
-            DexUtils.verifyEntryFull(entry, that.market.coin.node, that.market.coinAvailable, function() {
-
-                DexUtils.verifyRedeemBalanceFull(that.market.base.node, that.market.baseAvailable, function() {
-
-                    that.websocketService.getSocket(that.market, function(ws) {
-                        ws.send(JSON.stringify(entry));
-                        if(entry.act == 'bid')
-                            that.bidAmount = 0;
-                        else
-                            that.askAmount = 0;
-                        that.userService.showSuccess("Order has been placed, it may take a few seconds to show in the list");
+        this.userService.getPrivateKey(this.market.coin.name, function(key) {
+            that.websocketService.getSocket(that.market, function(ws) {
+                var allDone = (increment: boolean) => {
+                    if(increment) 
+                        doneCount++;
+                    if(doneCount == offers.length) {
+                        if(entry.amount > entry.min)
+                        {
+                            entry.hash = DexUtils.sha1(DexUtils.getListingSigMessage(entry));
+                            entry.sig = that.market.coin.node.signMessage(entry.hash, key);
+                            ws.send(JSON.stringify(entry));
+                            that.market.addMyListing(entry);
+                        }
+                    }
+                };
+                offers.forEach((offer) => {
+                    var listing = that.market.listings[offer.listing];
+                    DexUtils.verifyListing(listing, that.market.base.node, () => {
+                        offer.hash = DexUtils.sha1(DexUtils.getOfferSigMessage(offer));
+                        offer.sig = that.market.coin.node.signMessage(offer.hash, key);
+                        ws.send(JSON.stringify(offer));
+                        that.askAmount = 0;
+                        that.userService.showSuccess("Offer has been placed, waiting for lister to accept");
+                        that.market.addMyOffer(offer);
+                        allDone(true);
+                    }, (error) => {
+                        that.userService.handleError(error);
+                        entry.amount += offer.amount; //add unused maount back onto offer
+                        allDone(true);
                     });
-                }, function(err) {
-                    that.userService.showError(err);
-                });
-            }, function(err) {
-                that.userService.showError(err);
+                }); 
+                allDone(false); //incase 0 offers found
             });
-        });  
+        });
     }
 
     genTestData() {
@@ -349,13 +419,13 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     initMarket() {
         var that = this;
-        this.market.account = this.userService.getAccount();
+        this.account = this.userService.getAccount();
         var cAddress = this.userService.getAccount()[this.market.coin.name].address; 
         var bAddress = this.userService.getAccount()[this.market.base.name].address;
 
         //TODO: update these on a 60 second interval loop
-        this.userService.getBalance(this.market.coin.name, function(b) { that.market.coinBalance = b; that.market.setAvailableBalances(cAddress, bAddress); });
-        this.userService.getBalance(this.market.base.name, function(b) { that.market.baseBalance = b; that.market.setAvailableBalances(cAddress, bAddress); });
+        this.userService.getBalance(this.market.coin.name, function(b) { that.market.coinAvailable += (b - that.market.coinBalance); that.market.coinBalance = b; });
+        this.userService.getBalance(this.market.base.name, function(b) { that.market.baseAvailable += (b - that.market.baseBalance); that.market.baseBalance = b; });
         this.initWebsockets();
 
         this.askMinPercent = Number(this.localStorageService.get(this.market.coin.name + 'askMinPercent') || 50);

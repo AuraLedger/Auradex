@@ -1,6 +1,7 @@
 import { INode } from './INode';
 import { EtherConfig } from './NodeConfig';
-import { EntryMessage, TradeMessage } from './AuradexApi';
+import { ListingMessage, OfferMessage, AcceptMessage, SwapInfo } from './AuradexApi';
+import { DexUtils } from './DexUtils';
 import { EthAtomicSwap } from './EthAtomicSwap';
 
 declare var require: any
@@ -9,7 +10,7 @@ const Web3 = require('web3');
 export class EtherNode implements INode {
     web3: any;
     gasGwei: number = 20;
-    requiredConfirmations: number = 12;
+    confirmTime: number = 60 * 3; // 3 minutes
     contractAddress: string;
     type: string;
     chainId: number;
@@ -39,7 +40,7 @@ export class EtherNode implements INode {
         if(settings.nodeUrl)
             this.web3 = new Web3(new Web3.providers.HttpProvider(settings.rpcUrl));
         if(settings.requiredConfirmations)
-            this.requiredConfirmations = settings.requiredConfirmations;
+            this.confirmTime = settings.confirmTime;
     }
 
     signMessage(msg: string, privateKey: string): string {
@@ -82,26 +83,26 @@ export class EtherNode implements INode {
     }
 
     //TODO:these
-    initSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+    initSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
         var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
-            from: receiver.address,
+            from: listing.address,
             gasPrice: Web3.utils.toWei(Web3.utils.toBN(this.gasGwei), 'gwei')
         });
 
-        var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 48; //add 48 hours
-        var hashedSecret = Web3.utils.hexToBytes(trade.hashedSecret);
+        var refundTime = DexUtils.UTCTimestamp() + 60 * 60 * 48; //add 48 hours
+        var hashedSecret = Web3.utils.hexToBytes(accept.hashedSecret);
 
         var amount = 0;
-        if(trade.cause == 'ask') {
-            amount = trade.amount * receiver.price;
+        if(listing.act == 'bid') {
+            amount = accept.amount * listing.price;
         } else {
-            amount = trade.amount;
+            amount = accept.amount;
         }
 
-        var initiateMethod = contract.methods.initiate(refundTime, hashedSecret, initiator.redeemAddress);
+        var initiateMethod = contract.methods.initiate(refundTime, hashedSecret, offer.redeemAddress);
         
         var that = this;
-        initiateMethod.estimateGas({from: receiver.address, gas: 300000}, function(err, gas) {
+        initiateMethod.estimateGas({from: listing.address, gas: 300000}, function(err, gas) {
             if(err)
                 fail(err);
             else {
@@ -129,26 +130,27 @@ export class EtherNode implements INode {
         });
     }
 
-    acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+    acceptSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
         var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
-            from: initiator.address,
+            from: offer.address,
             gasPrice: Web3.utils.toWei(Web3.utils.toBN(this.gasGwei), 'gwei')
         });
 
+        //TODO: make sure there is atleast 30 hours remaining on the initiate swap
         var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 24; //add 24 hours
-        var hashedSecret = Web3.utils.hexToBytes(trade.hashedSecret);
+        var hashedSecret = Web3.utils.hexToBytes(accept.hashedSecret);
 
-        var participateMethod = contract.methods.participate(refundTime, hashedSecret, receiver.redeemAddress);
+        var participateMethod = contract.methods.participate(refundTime, hashedSecret, listing.redeemAddress);
 
         var amount = 0;
-        if(trade.cause == 'bid') {
-            amount = trade.amount * receiver.price;
+        if(listing.act == 'ask') {
+            amount = accept.amount * listing.price;
         } else {
-            amount = trade.amount;
+            amount = accept.amount;
         }
 
         var that = this;
-        participateMethod.estimateGas({from: initiator.address, gas: 300000}, function(err, gas) {
+        participateMethod.estimateGas({from: offer.address, gas: 300000}, function(err, gas) {
             if(err)
                 fail(err);
             else {
@@ -176,8 +178,105 @@ export class EtherNode implements INode {
         });
     }
 
-    redeemSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+    redeemSwap(address: string, hashedSecret: string, secret: string, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+     var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
+            from: address,
+            gasPrice: Web3.utils.toWei(Web3.utils.toBN(this.gasGwei), 'gwei')
+        });
+
+        //TODO: make sure there is atleast 30 hours remaining on the initiate swap
+        var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 24; //add 24 hours
+        var _hashedSecret = Web3.utils.hexToBytes(hashedSecret);
+        var _secret = Web3.utils.hexToBytes(secret);
+
+        var redeemMethod = contract.methods.redeem(secret, hashedSecret);
+
+        var amount = 0;
+        var that = this;
+        redeemMethod.estimateGas({from: address, gas: 300000}, function(err, gas) {
+            if(err)
+                fail(err);
+            else {
+                that.web3.eth.accounts.signTransaction( {
+                    to: that.contractAddress,
+                    value: Web3.toBN(0),
+                    gas: gas,
+                    gasPrice: Web3.utils.toWei(Web3.utils.toBN(that.gasGwei), 'gwei'),
+                    chainId: that.chainId, 
+                    data: redeemMethod.encodeABI()
+                }, privateKey, function (err, signedTx) {
+                    if(err)
+                        fail(err);
+                    else {
+                        that.web3.eth.sendSignedTransaction(signedTx, function(err, txId) {
+                            if(err)
+                                fail(err);
+                            else
+                                success(txId);
+                        });
+                    }
+                });
+            }
+        });
     }
 
-    checkStatus() {}
+    private increaseHexByOne(hex) {
+        let x = Web3.utils.toBN(hex);
+        let sum = x.add(1);
+        let result = '0x' + sum.toString(16);
+        return result;
+    }
+
+    getSwapInfo(hashedSecret, success: (info: SwapInfo) => void, fail: (err: any) => void): void {
+        var index = Web3.utils.padleft('0', 64);
+        var key = Web3.utils.padleft(hashedSecret, 64);
+        key =  this.web3.utils.sha3(key + index, {"encoding":"hex"});
+        var that = this;
+        this.web3.eth.getStorageAt(this.contractAddress, key, function(err, initTimestamp) {
+            if(err) { fail(err); return; }
+            var key = that.increaseHexByOne(key);
+            this.web3.eth.getStorageAt(this.contractAddress, key, function(err, refundTime) {
+                if(err) { fail(err); return; }
+                var key = that.increaseHexByOne(key);
+                this.web3.eth.getStorageAt(this.contractAddress, key, function(err, _hashedSecret) {
+                    if(err) { fail(err); return; }
+                    var key = that.increaseHexByOne(key);
+                    this.web3.eth.getStorageAt(this.contractAddress, key, function(err, secret) {
+                        if(err) { fail(err); return; }
+                        var key = that.increaseHexByOne(key);
+                        this.web3.eth.getStorageAt(this.contractAddress, key, function(err, initiator) {
+                            if(err) { fail(err); return; }
+                            var key = that.increaseHexByOne(key);
+                            this.web3.eth.getStorageAt(this.contractAddress, key, function(err, participant) {
+                                if(err) { fail(err); return; }
+                                var key = that.increaseHexByOne(key);
+                                this.web3.eth.getStorageAt(this.contractAddress, key, function(err, value) {
+                                    if(err) { fail(err); return; }
+                                    var key = that.increaseHexByOne(key);
+                                    this.web3.eth.getStorageAt(this.contractAddress, key, function(err, emptied) {
+                                        if(err) { fail(err); return; }
+                                        var key = that.increaseHexByOne(key);
+                                        this.web3.eth.getStorageAt(this.contractAddress, key, function(err, state) {
+                                            if(err) { fail(err); return; }
+                                            success({
+                                                initTimestamp: initTimestamp,
+                                                refundTime: refundTime,
+                                                hashedSecret: _hashedSecret,
+                                                secret: secret,
+                                                initiator: initiator,
+                                                participant: participant,
+                                                value: Web3.utils.fromWei(value, 'ether'),
+                                                emptied: emptied,
+                                                state: state
+                                            });
+                                        });
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+    }
 }

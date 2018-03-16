@@ -1,7 +1,12 @@
 import { Coin, CoinConfig } from './coin';
 import * as SortedArray from 'sorted-array';
 
-import { EntryMessage, TradeMessage, INode } from './lib/libauradex';
+import { ListingMessage, OfferMessage, AcceptMessage, CancelMessage, DexUtils, StoredArrayMap, ArrayMap, OneToMany, INode } from './lib/libauradex';
+
+interface SwapTx {
+    txId: string;
+    blockNumber: number;
+};
 
 export class Market {
 
@@ -10,20 +15,34 @@ export class Market {
 
     bid: SortedArray = SortedArray.comparing(x => { return -x.price; }, []);
     ask: SortedArray = SortedArray.comparing(x => { return x.price; }, []);
-    mine: EntryMessage[] = [];
-    trades = [];
-    myTrades = [];
-    recentTrades = [];
-    tradeQeueu = [];
 
-    myMap = {
-        bid: {},
-        ask: {}
-    };
-    fullMap = {
-        bid: {},
-        ask: {}
-    };
+    bidSum: number;
+    askSum: number;
+
+    listings: StoredArrayMap = new StoredArrayMap('hash');
+    offers: StoredArrayMap = new StoredArrayMap('hash');
+    accepts: StoredArrayMap = new StoredArrayMap('hash');
+
+    myListings: ArrayMap = new ArrayMap('hash');
+    myOffers: ArrayMap = new ArrayMap('hash');
+    myAccepts: ArrayMap = new ArrayMap('hash');
+
+    offerAccept: any = {}; // offer hash to accept object
+    
+    listingOffers = new OneToMany();
+    listingAccepts = new OneToMany();
+
+    swapTxs = {}; //accept hash -> object with 4 swapTxs
+
+    //if offers or accepts arrive before a listing, they are place here
+    //TODO: periodically clean these out
+    offerQueue = [];
+    acceptQueue = [];
+
+    myTimes = {};  //hash to timestamp
+    
+    cancelling: any = {};
+    matched: any = {};
 
     //TODO: these are based on currect active account, need to refresh them on account switch (might not be necessary if multiple accounts are disabled)
     coinBalance: number;
@@ -33,11 +52,18 @@ export class Market {
 
     connected: boolean = false;
 
+    //TODO: get this from historical blockchain analyzer
     price: number;
     change: number;
 
     mySortProperty: string = 'timestamp';
     mySortDir: boolean = false;
+
+    myOfferSortProperty: string = 'timestamp';
+    myOfferSortDir: boolean = false;
+
+    myAccSortProperty: string = 'timestamp';
+    myAccSortDir: boolean = false;
 
     constructor(
         readonly config: MarketConfig, 
@@ -48,35 +74,156 @@ export class Market {
         this.id = this.config.id || this.coin.ticker + '-' + this.base.ticker;
     }
 
-    addMine(entry: EntryMessage): void {
-        this.mine.push(entry);
-        this.myMap[entry.act][entry._id] = entry;
-        this.sortMyList();
+    addListing(listing: ListingMessage): boolean {
+        if(this.listings.add(listing)) {
+            this.myTimes[listing.hash] = DexUtils.UTCTimestamp();
+            if(listing.act == 'bid') {
+                this.bid.insert(listing);
+                this.calcSum(this.bid.array);
+            }
+            else {
+                this.ask.insert(listing);
+                this.calcSum(this.ask.array);
+            }
+            return true;
+        }
+        return false;       
     }
 
-    removeMine(entry: EntryMessage): void {
-        delete this.myMap[entry.act][entry._id];
-        for(var i = 0; i < this.mine.length; i++)
-        {
-            if(this.mine[i]._id == entry._id) {
-                this.mine.splice(i, 1);
-                return;
+    addOffer(offer: OfferMessage): boolean {
+        if(this.offers.add(offer)) {
+            this.myTimes[offer.hash] = DexUtils.UTCTimestamp(); //TODO: check myTimes as extra validation in case troll sends fake timestamp
+            this.listingOffers.add(offer.listing, offer);
+            return true;
+        }
+        return false;
+
+    }
+
+    addMyOffer(offer: OfferMessage): boolean {
+        if(!this.listings.has(offer.listing))
+            throw 'Cannot find listing for my offer'
+
+        if(this.addOffer(offer)) {
+            this.myOffers.add(offer);
+            this.sortMyOffers();
+        }
+        return false;
+    }
+
+    addMyAccept(accept: AcceptMessage): boolean {
+        if(!this.offers.has(accept.offer))
+            throw 'Cannot find offer for my accept';
+
+        if(this.addAccept(accept)) {
+            this.myAccepts.add(accept);
+            this.sortMyAccepts();
+            return true;
+        }
+        return false;
+    }
+
+    finishMyAccept(accept: AcceptMessage) {
+        var listing = this.listings.get(this.offers.get(accept.offer).listing);
+        var remaining = this.getListingRemaining(listing);
+
+        if(remaining < listing.min) {
+            if(listing.act == 'bid') {
+                DexUtils.removeFromBook(this.bid, listing);
             }
+            if(listing.act == 'ask') {
+                DexUtils.removeFromBook(this.ask, listing)
+            }
+            this.myListings.remove(listing.hash);
         }
     }
 
-    sortMyList() {
+    getCoinBookBalance(): number {
         var that = this;
-        if(this.mySortProperty == 'size')
-            this.mine.sort((a,b) => { return (a.amount * a.price - b.amount * b.price) * (that.mySortDir ? -1: 1); });
+        var fee = this.coin.node.getInitFee();
+        var sum = 0;
+
+        this.myListings.array.forEach(l => {
+            if(l.act == 'ask') {
+                sum += that.getListingRemaining(l) + fee;
+            }
+        });
+
+        this.myOffers.array.forEach(o => {
+            if(!o.txId || o.txId.length == 0) {
+                var l = that.listings.get(o.listing);
+                if(l.act == 'bid') {
+                    var amount = o.amount;
+                    if(that.offerAccept.hasOwnProperty(o.hash))
+                        amount = that.offerAccept[o.hash].amount;
+                    sum += amount + fee;
+                }
+            }
+        });
+
+        return sum;
+    }
+
+    getBaseBookBalance(): number {
+        var that = this;
+        var fee = this.base.node.getInitFee();
+        var sum = 0;
+
+        this.myListings.array.forEach(l => {
+            if(l.act == 'bid') {
+                sum += that.getListingRemaining(l) * l.price + fee;
+            }
+        });
+
+        this.myOffers.array.forEach(o => {
+            if(!o.txId || o.txId.length == 0) {
+                var l = that.listings.get(o.listing);
+                if(l.act == 'ask') {
+                    var amount = o.amount;
+                    if(that.offerAccept.hasOwnProperty(o.hash))
+                        amount = that.offerAccept[o.hash].amount;
+                    sum += amount * l.price + fee;
+                }
+            }
+        });
+
+        return sum;
+    }
+
+    //TODO: retore listings/offers/accepts/initTransactions on load from localStorage
+    //TODO: maybe request books from another user
+    //TODO: when restoring from localStorage, manually call addMy* methods
+    addMyListing(listing: ListingMessage) {
+        if(this.addListing(listing)) {
+            this.myListings.add(listing);
+            this.sortMyListings();
+        }
+    }
+
+    sortMyListings() {
+        this.sortMyList(this.myListings.array, this.mySortProperty, this.mySortDir);
+    }
+
+    //TODO: wrap all messages in new objects with more properties for client side handling
+    sortMyOffers() {
+        this.sortMyList(this.myOffers.array, this.myOfferSortProperty, this.myOfferSortDir);
+    }
+
+    sortMyAccepts() {
+        this.sortMyList(this.myAccepts.array, this.myAccSortProperty, this.myAccSortDir);
+    }
+
+    sortMyList(arr: any[], property: string, direction: boolean) {
+        if(property == 'size')
+            arr.sort((a,b) => { return (a.amount * a.price - b.amount * b.price) * (direction ? -1: 1); });
         else {
-            this.mine.sort((a, b) => {
+            this.myListings.array.sort((a, b) => {
                 var result = 0;
-                if(a[that.mySortProperty] > b[that.mySortProperty])
+                if(a[property] > b[property])
                     result = 1;
-                else if (b[that.mySortProperty] > a[that.mySortProperty])
+                else if (b[property] > a[property])
                     result = -1;
-                if(that.mySortDir)
+                if(direction)
                     result = result * -1;
                 return result;
             });
@@ -88,59 +235,81 @@ export class Market {
             this.mySortDir = !this.mySortDir;
         else
             this.mySortProperty = prop;
-        this.sortMyList();
+        this.sortMyListings();
     }
 
-    setAvailableBalances(coinAddress: string, baseAddress: string) {
-        var cb = this.coin.getBookBalance(coinAddress);
-        var cf = this.coin.node.getInitFee();
-        var bb = this.base.getBookBalance(baseAddress);
-        var bf = this.base.node.getInitFee();
-        this.coinAvailable = Math.max(this.coinBalance - cb - cf, 0);
-        this.baseAvailable = Math.max(this.baseBalance - bb - bf, 0);
+    myOffSort(prop: string) {
+        if(prop == this.myOfferSortProperty)
+            this.myOfferSortDir = !this.myOfferSortDir;
+        else
+            this.myOfferSortProperty = prop;
+        this.sortMyOffers();
     }
 
-    addTrade(trade: TradeMessage): boolean {
-        var bidderId = trade.cause == 'bid' ? trade.id1 : trade.id2;
-        var askerId = trade.cause == 'bid' ? trade.id2 : trade.id1;
+    myAccSort(prop: string) {
+        if(prop == this.myAccSortProperty)
+            this.myAccSortDir = !this.myAccSortDir;
+        else
+            this.myAccSortProperty = prop;
+        this.sortMyAccepts();
+    }
 
-        //if we got the trade before the ask/bid, put this in the queue and wait for the next ask/bid to try and process the trade
-        //TODO: request specific entry from websocket server
-        if(!this.fullMap.bid.hasOwnProperty(bidderId) || !this.fullMap.ask.hasOwnProperty(askerId)) {
-            this.tradeQeueu.push(trade);
-            return false; 
+    getListingCoin(listing: ListingMessage): Coin {
+        return this.getActCoin(listing.act);
+    }
+
+    getActCoin(act: string): Coin {
+        if(act == 'bid') return this.base;
+        if(act == 'act') return this.coin;
+        throw 'invlid act ' + act;
+    }
+
+    getOfferCoin(offer): Coin {
+        return this.getActCoin(DexUtils.other(this.listings.get(offer.listing).act));
+    }
+
+    cancel(message: CancelMessage) {
+        //TODO: don't remove from storage, just set cancel property when this is wrapped with a client object
+        var listing = this.listings.get(message.listing);
+        if(listing.act == 'bid') {
+            DexUtils.removeFromBook(this.bid, message); 
+        }
+        if(listing.act == 'ask') {
+            DexUtils.removeFromBook(this.ask, message);
         }
 
-        if(this.myMap.ask.hasOwnProperty(askerId) || this.myMap.bid.hasOwnProperty(bidderId)) {
-            if(this.myMap.ask.hasOwnProperty(askerId) && this.myMap.bid.hasOwnProperty(bidderId)) {
-                //TODO: move the showError method to a separate service that has no other dependencies
-                //this.userService.showError("Sorry, you cannot trade with yourself :)");
-                return false;
-            }
+        //TODO: cancel offers for this lising
+        this.listingOffers.get(listing.hash).forEach(o => this.cancelOffer(o));
+    }
 
-            //you're part of this trade, if you are the receiver, verify inititiator still has enough funds, create the hashed secret, and make the initial transaction
-            //TODO: give the receiver a 60 second window to cancel the trade before anything happens on chain, in case they were about to cancel it when this pops up
-            this.myTrades.push(trade);
+    cancelOffer(offer: OfferMessage) {
+        //TODO: set canelled status on new offer object (when implemented) but check for accept and swap status first
+        //TODO: if there is an accept, do not cancel
+    }
+
+    getPotentialAcceptAmount(offer) {
+        var listing = this.listings.get(offer.listing);
+        var remaining = this.getListingRemaining(listing);
+        if(remaining > listing.min && remaining > offer.min)
+            return Math.min(offer.amount, remaining);
+        return 0;
+    }
+
+    getListingRemaining (listing: ListingMessage): number {
+        var accepts = this.listingAccepts.get(listing.hash) || [];
+        var accepted = accepts.reduce((sum: number, accept: AcceptMessage) => sum += accept.amount, 0) || 0;
+        return listing.amount - accepted;
+    }
+
+    addAccept(accept: AcceptMessage): boolean {
+        if(this.accepts.add(accept)) {
+            this.myTimes[accept.hash] = DexUtils.UTCTimestamp();
+            this.offerAccept[accept.offer] = accept;
+            var offer = this.offers.get(accept.offer);
+            this.listingAccepts.add(offer.listing, accept);
             return true;
         }
-        this.trades.push(trade);
-        return false;
-    }
-
-    addBid(entry: EntryMessage) {
-        if(entry.act != 'bid')
-            throw 'Tried to add non-bid entry ' + entry.act + ' to bid list'; 
-        this.bid.insert(entry);
-        this.fullMap.bid[entry._id] = entry;
-        this.calcSum(this.bid.array);
-    }
-
-    addAsk(entry: EntryMessage) {
-        if(entry.act != 'ask')
-            throw 'Tried to add non-ask entry ' + entry.act + ' to ask list'; 
-        this.ask.insert(entry);
-        this.fullMap.ask[entry._id] = entry;
-        this.calcSum(this.ask.array);
+            return false;
     }
 
     calcSum(entries: any[]): void {

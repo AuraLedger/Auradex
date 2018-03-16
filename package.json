@@ -32,6 +32,7 @@
     "crypto-js": "^3.1.9-1",
     "ethereumjs-tx": "^1.3.3",
     "hammerjs": "^2.0.8",
+    "node-localstorage": "^1.3.0",
     "randombytes": "^2.0.6",
     "ripemd160": "^2.0.1",
     "rxjs": "^5.5.6",

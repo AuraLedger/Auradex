@@ -2,7 +2,8 @@ import { Injectable } from '@angular/core';
 import { Coin } from './coin';
 import { Market } from './market';
 import { UserService } from './user.service';
-import { EntryMessage, NonceMessage, DexUtils, CancelMessage, TradeMessage, StepMessage, INode } from './lib/libauradex';
+import { CoinService } from './coin.service';
+import { ListingMessage, DexUtils, CancelMessage, OfferMessage, AcceptMessage, SwapInfo, INode } from './lib/libauradex';
 
 import { LocalStorageService } from 'angular-2-local-storage';
 import { CryptoService } from './crypto.service';
@@ -16,6 +17,7 @@ export class WebsocketService {
 
     constructor(
         private userService: UserService,
+        private coinService: CoinService,
         private storage: LocalStorageService,
         private cryptoService: CryptoService
     ) { }
@@ -24,21 +26,26 @@ export class WebsocketService {
         if(!this.socks.hasOwnProperty(market.id))
         {
             var ws = this.socks[market.id] = new WebSocket(market.webSocketServerURL);
+            var coinAddress = this.userService.getAccount()[market.coin.name].address;
+            var baseAddress = this.userService.getAccount()[market.base.name].address;
 
             var that = this;
             ws.onmessage = function(evt) {
                 var json = JSON.parse(evt.data);
 
-                switch(json.act) {
-                    case 'bid': that.addBid(json, market); break; //TODO: verify bid
-                    case 'ask': that.addAsk(json, market); break; 
-                    case 'nonce': that.nonce(json, market); break; 
-                    case 'trade': that.addTrade(json, market); break; 
-                    case 'register': that.register(json, ws, market); break;
-                    case 'cancel': that.cancel(json, market); break;
+                if(json.address == coinAddress || json.address == baseAddress)
+                    return; // ignore your own messages if they are sent back to you
 
+                switch(json.act) {
+                    case 'bid': that.addListing(json, market); break; 
+                    case 'ask': that.addListing(json, market); break; 
+                    case 'cancel': that.cancel(json, market); break;
+                    case 'offer': that.addOffer(json, market); break;
+                    case 'accept': that.addAccept(json, market); break;
+
+                    //TODO: need really good fee estimation
                     case 'setFeeRates': that.setFeeRates(json, market); break;
-                    case 'err': that.userService.showError(json.err); break;
+                    case 'err': that.userService.handleError(json.err); break; //should only come from server
                 } 
             };
 
@@ -47,31 +54,38 @@ export class WebsocketService {
         }
     }
 
+    //TODO: attempt to restore listings/offers when reconnecting, but factor in current book balances and coin balances
+    updateBookBalances(coin: string) {
+        var that = this;
+        var marketIds = Object.keys(this.socks).filter(k => that.socks.hasOwnProperty(k));
+        var sum = 0;
+
+        marketIds.forEach(id => {
+            var market = that.coinService.marketd[id];
+            if(market.coin.name == coin)
+                sum += market.getCoinBookBalance();
+            else if (market.base.name == coin)
+                sum += market.getBaseBookBalance();
+        });
+
+        marketIds.forEach(id => {
+            var market = that.coinService.marketd[id];
+            if(market.coin.name == coin)
+                market.coinAvailable = Math.max(market.coinBalance - sum, 0);
+            else if (market.base.name == coin)
+                market.baseAvailable = Math.max(market.baseBalance - sum, 0);
+        });
+
+    }
+
     cancel(obj: CancelMessage, market) {
-        if(obj.entryType == 'bid')
-        {
-            var entry = DexUtils.removeFromBook(market.bid, obj);  
-            market.base.subBookBalance(entry.address, entry.price * entry.amount + market.base.node.getInitFee());
-            market.coin.subBookBalance(entry.redeemAddress, market.coin.node.getRedeemFee());
-            delete market.fullMap.bid[obj._id];
-            if(entry.address == this.userService.getAccount()[market.base.name].address) {
-                market.removeMine(entry);
-                market.setAvailableBalances(entry.redeemAddress, entry.address);
-            }
-        }
-        else if (obj.entryType == 'ask')
-        {
-            var entry = DexUtils.removeFromBook(market.ask, obj);  
-            market.coin.subBookBalance(entry.address, entry.amount + market.coin.node.getInitFee());
-            market.base.subBookBalance(entry.redeemAddress, market.base.node.getRedeemFee());
-            delete market.fullMap.ask[obj._id];
-            if(entry.address == this.userService.getAccount()[market.coin.name].address) {
-                market.removeMine(entry);
-                market.setAvailableBalances(entry.address, entry.redeemAddress);
-            }
-        }
-        else
-            this.userService.showError("Unknown cancel entry type: " + obj.entryType);
+        var listing = market.listings.get(obj.listing);
+        DexUtils.verifyCancelSig(obj, market.getListingCoin(listing).node, listing.address, () => {
+            market.cancel(obj);
+        }, (error) => {
+            //log but don't show
+            console.log(error);
+        });
     }
 
     setFeeRates(obj, market) {
@@ -87,221 +101,286 @@ export class WebsocketService {
             this.connect(market, cb);
     }
 
-    private addBid(entry: EntryMessage, market: Market)
+    private addListing(listing: ListingMessage, market: Market)
     {
+        if(market.listings.has(listing.hash))
+            return;
         var that = this;
-        DexUtils.verifyEntry(entry, market.base.node, market.base.getBookBalance(entry.address), function() {
-            market.addBid(entry);
-            market.base.addBookBalance(entry.address, entry.price * entry.amount + market.base.node.getInitFee());
-            market.coin.addBookBalance(entry.redeemAddress, market.coin.node.getRedeemFee());
-            if(entry.address == that.userService.getAccount()[market.base.name].address) {
-                market.addMine(entry);
-                market.base.setNonce(that.userService.activeAccount, entry.nonce + 1);
-                market.setAvailableBalances(entry.redeemAddress, entry.address);
-            }
+        DexUtils.verifyListing(listing, market.getListingCoin(listing).node, function() {
+            market.addListing(listing);
+
+            //reevaluate offer queue
+            var temp = market.offerQueue;
+            market.offerQueue = [];
+            temp.forEach(offer => that.addOffer(offer, market));
         }, function(err) {
-            that.userService.showError(err);
+            //log but don't show
+            console.log(err);
         });
     }
 
-    //TODO: subtract from book balance when entries are removed
-    private addAsk(entry: EntryMessage, market: Market)
-    {
+    private addOffer(offer: OfferMessage, market: Market): void {
+        if(market.offers.has(offer.hash)) {
+            return;
+        }
         var that = this;
-        DexUtils.verifyEntry(entry, market.coin.node, market.coin.getBookBalance(entry.address), function() {
-            market.addAsk(entry);
-            market.coin.addBookBalance(entry.address, entry.amount + market.coin.node.getInitFee());
-            market.base.addBookBalance(entry.redeemAddress, market.base.node.getRedeemFee());
-            if(entry.address == that.userService.getAccount()[market.coin.name].address) {
-                market.addMine(entry);
-                market.coin.setNonce(that.userService.activeAccount, entry.nonce + 1);
-                market.setAvailableBalances(entry.address, entry.redeemAddress);
+        DexUtils.verifyOfferSig(offer, market.base.node, offer.address, () => {
+            var listing = market.listings.get(offer.listing);
+            if(!listing) {
+                market.offerQueue.push(offer)
             }
-        }, function(err) {
-            that.userService.showError(err);
-        });
-    }
-
-    private nonce(json: NonceMessage, market) {
-        if(json.entryType == 'ask')
-            market.coin.setNonce(this.userService.activeAccount, json.val + 1);
-        if(json.entryType == 'bid')
-            market.base.setNonce(this.userService.activeAccount, json.val + 1);
-    }
-
-    private register(json, ws, market) {
-        //sign two messages and send them to the service
-        var that = this;
-        this.userService.getPrivateKey(market.coin.name, function(key) {
-            if(!key)
-                that.userService.showError('failed to connect');
             else {
-                var coinSig = market.coin.node.signMessage(json.challenge, key);
-                that.userService.getPrivateKey(market.base.name, function(bkey) {
-                    if(!bkey)
-                        that.userService.showError('failed to connect');
-                    else {
-                    var baseSig = market.base.node.signMessage(json.challenge, bkey);
-                        var payload = {
-                            act: 'register',
-                            coinSig: coinSig,
-                            baseSig: baseSig,
-                            coinAddress: that.userService.getAccount()[market.coin.name].address,
-                            baseAddress: that.userService.getAccount()[market.base.name].address
-                        };
-                        ws.send(JSON.stringify(payload)); 
-                    }
-                });
+                market.addOffer(offer);
+                var potentialAmount = market.getPotentialAcceptAmount(offer);
+                if(market.myListings.has(offer.listing) && potentialAmount > 0)
+                {
+                    DexUtils.verifyOffer(offer, listing, market.getOfferCoin(offer).node, () => {
+                        //accept offer
+                        //TODO: make sure previous verification is thorough
+                        // you are the lister of the market trade, initiate HTLC swap 
+                        // Generate random 32byte secret and create RIPEMD160 hash from it 
+                        var myCoin = market.getListingCoin(listing);
+                        randombytes.getRandomBytes(32, function(err, buffer) {
+                            if(err)
+                                that.userService.handleError(err);
+                            else {
+                                var secret = buffer.toString('hex');
+                                var hashedSecret = new RIPEMD160().update(buffer).digest('hex');
+                                that.storage.set(hashedSecret, secret);
+                                //initiate HTLC swap
+                                var accept: any = {
+                                    act: 'accept', 
+                                    offer: offer.hash,
+                                    amount: potentialAmount,
+                                    timestamp: DexUtils.UTCTimestamp(),
+                                    hashedSecret: hashedSecret
+                                };
+                                that.userService.getTradePrivateKey(myCoin.name, function(key) {
+                                    market.addMyAccept(accept); //save now incase there are issues when broadcasting tx
+                                    myCoin.node.initSwap(listing, offer, accept, key, (txId) => {
+                                        //TODO: need a way for users to manually input a transaction id to continue the swap in case the initial transaction is mined but this methed fails to return
+                                        accept.txId = txId;
+                                        market.accepts.add(accept, true); // save with txId, just in case
+                                        accept.hash = DexUtils.sha1(DexUtils.getAcceptSigMessage(accept));
+                                        accept.sig = myCoin.node.signMessage(accept.hash, key);
+                                        market.accepts.add(accept, true); // save again
+                                        market.finishMyAccept(accept);
+                                        that.getSocket(market, function(ws) {
+                                            ws.send(JSON.stringify(accept));
+                                        });
+                                        that.updateBookBalances(myCoin.name);
+                                    }, (error) => {
+                                        that.userService.handleError(error);
+                                    });
+                                }, accept);
+                            }
+                        });
+                    }, (err) => {
+                        console.log(err);
+                    });
+                };
+                //reevaluate accept queue
+                var temp = market.acceptQueue;
+                market.acceptQueue = [];
+                temp.forEach(accept => that.addAccept(accept, market));
+
             }
+        }, (err) => {
+            console.log(err);
         });
+
     }
 
-    private addTrade(trade: TradeMessage, market: Market): void {
-        if(market.addTrade(trade))
-            this.processTrades(market);
+    private addAccept(accept: AcceptMessage, market: Market): void {
+        if(market.accepts.has(accept.hash)) {
+            return;
+        }
+        var offer = market.offers.get(accept.offer);
+        if(!offer) {
+            market.acceptQueue.push(accept);
+        } else {
+            var listing = market.listings.get(offer.listing);
+            DexUtils.verifyAccept(accept, offer, listing, market.getListingCoin(listing).node, function() {
+                market.addAccept(accept);
+            }, function(err) {
+                //log but don't show
+                console.log(err);
+            });
+        }
     }
-   
+
+    private abortAccept(market, accept: AcceptMessage, reason?: string) {
+        market.aborted.add(accept);
+        market.myAccepts.remove(accept);
+        this.userService.showError(reason);
+    }
+
+    private finishAccept(market, accept) {
+        market.finished.add(accept);
+        market.myAccepts.remove(accept);
+    }
+    private abortOffer(market, offer, reason?: string) {
+        market.aborted.add(offer);
+        market.myOffers.remove(offer);
+        this.userService.showError(reason);
+    }
+
+    private finishOffer(market, offer) {
+        market.finished.add(offer);
+        market.myOffers.remove(offer);
+    }
+
     //TODO: should be called periodically, probably every 30 seconds is sufficient
     //might need to increase frequency when lightning/plasma/raiden is implemented
     //or switch to an event based model and subscribe to nodes connected via websockets
     processTrades(market: Market) {
         var that = this;
-        for(var i = 0; i < market.myTrades.length; i++)
-        {
-            var trade: TradeMessage = market.myTrades[i];
-            var isReceiver: boolean = market.myMap.bid.hasOwnProperty(trade.id2) || market.myMap.ask.hasOwnProperty(trade.id2);
-            if(!isReceiver && !(market.myMap.bid.hasOwnProperty(trade.id1) || market.myMap.ask.hasOwnProperty(trade.id1))) {
-                that.userService.handleError("Your entry not found");
-                continue;
-            }
-            var myCoin, theirCoin, receiver, initiator;
+        market.myAccepts.array.forEach(accept => {
+            try { //run all in try/catch so that one error doesn't hose the rest
+                var offer = market.offers.get(accept.offer);
+                var listing = market.myListings.get(offer.listing);
+                var theirCoin = market.getOfferCoin(offer);
+                theirCoin.node.getSwapInfo(accept.hashedSecret, (swap: SwapInfo) => {
+                    if(swap.state == 0) {
+                        //they haven't participated, keep waiting
+                    } else if (DexUtils.UTCTimestamp() - swap.initTimestamp < theirCoin.node.confirmTime) {
+                        //hasn't been confirmed long enough, keep wiating
+                    } else {
+                        var amount = accept.amount;
+                        if(listing.act == 'ask')
+                            amount = amount * listing.price;
 
-            //determine who is on which side of the trade, and which coin needs to be sent/received
-            if(isReceiver) {
-                if(trade.cause == 'bid') {
-                    myCoin = market.coin;
-                    theirCoin = market.base;
-                    receiver = market.myMap.ask[trade.id2];
-                    initiator = market.fullMap.bid[trade.id1];
-                } else {
-                    myCoin = market.base;
-                    theirCoin = market.coin;
-                    receiver = market.myMap.bid[trade.id2];
-                    initiator = market.fullMap.ask[trade.id1];
-                }
-            } else {
-                if(trade.cause == 'bid') {
-                    myCoin = market.base;
-                    theirCoin = market.coin;
-                    receiver = market.fullMap.ask[trade.id2];
-                    initiator = market.myMap.bid[trade.id1];
-                } else {
-                    myCoin = market.coin;
-                    theirCoin = market.base;
-                    receiver = market.fullMap.bid[trade.id2];
-                    initiator = market.myMap.ask[trade.id1];
-                } 
-            }
+                        if(amount != swap.value) {
+                            that.abortAccept(market, accept, 'swap participated with wrong amount, got ' + swap.value + ' was expeting ' + amount);
+                            //TODO: use bignumber everywhere to minimize rounding errors
+                        } else if (swap.initiator != listing.redeemAddress) {
+                            that.abortAccept(market, accept, 'swap was sent to wrong address, got ' + swap.initiator + ' instead of ' + listing.redeemAddress);
+                        } else if (swap.emptied) {
+                            that.abortAccept(market, accept, 'swap has already been completed for hashedSecret ' + accept.hashedSecret);
+                        } else if (swap.state == 1)
+                        {
+                            that.abortAccept(market, accept, 'swap was initiated, was expecting participated, hashedSecret ' + accept.hashedSecret);
+                        } else if (swap.state != 2) {
+                            that.abortAccept(market, accept, 'invalid swap state ' + swap.state + ', hashedSecret ' + accept.hashedSecret);
+                        } else {
+                            if (swap.initTimestamp + swap.refundTime < DexUtils.UTCTimestamp()) {
+                                //trade has expired TODO: try to refund your initiation -- may have to wait until yours unlocks
+                            } //attempt to redeem anyway incase local timestamp is off
 
-
-            if(trade.step == 0 && isReceiver) { 
-                // you are the receivier of the market trade, initiate HTLC swap 
-                // Generate random 32byte secret and create RIPEMD160 hash from it 
-                randombytes.getRandomBytes(32, function(err, buffer) {
-                    var secret = buffer.toString('hex');
-                    var hashedSecret = new RIPEMD160().update(buffer).digest('hex');
-                    that.storage.set(hashedSecret, secret);
-                    //initiate HTLC swap
-                    trade.hashedSecret = hashedSecret;
-                    that.userService.getTradePrivateKey(myCoin.name, function(key) {
-                        myCoin.node.initSwap(receiver, initiator, trade, key, (txId) => {
-                            //TODO: need a way for users to manually input a transaction id to continue the swap in case the initial transaction is mined but this methed fails to return
-                            trade.txIds.push(txId);
-                            trade.step = 1; 
-                            that.getSocket(market, function(ws) {
-                                var step: StepMessage = {
-                                    act: 'step',
-                                    _id: trade._id,
-                                    step: 1,
-                                    txId: txId,
-                                    hashedSecret: hashedSecret
-                                };
-                                ws.send(JSON.stringify(step));
-                            });
-                        }, (error) => {
-                            that.userService.handleError(error);
-                        });
-                    }, trade);
-                });
-
-            } else if (trade.step == 1 && !isReceiver) {
-                // you are intitiator of the market trade, check for confirmations, participate in HTLC swap
-                if(trade.txIds.length == 1 && trade.hashedSecret && trade.hashedSecret.length == 32) {
-                    theirCoin.node.getConfirmationCount(trade.txIds[0], (count) => {
-                        if(count >= theirCoin.node.requiredConfirmations) {
-                            //TODO: verify transaction data (amount, recipient, refundTime, hashedSecret, initiator) 
-                            that.userService.getTradePrivateKey(myCoin.name, function(key) {
-                                myCoin.node.acceptSwap(receiver, initiator, trade, key, (txId) => {
-                                    trade.txIds.push(txId);
-                                    trade.step = 2; 
-                                    that.getSocket(market, function(ws) {
-                                        var step: StepMessage = {
-                                            act: 'step',
-                                            _id: trade._id,
-                                            step: 3,
-                                            txId: txId
-                                        };
-                                        ws.send(JSON.stringify(step));
-                                    });
-                                }, (error) => {
-                                    that.userService.showError(error);
-                                    console.log(error);
+                            //participation appears valid redeem
+                            that.userService.getTradePrivateKey(theirCoin.name, function(key) {
+                                theirCoin.node.redeemSwap(listing.redeemAddress, accept.hashedSecret, that.storage.get(accept.hashedSecret), key, (txId: string): void => {
+                                    that.finishAccept(market, accept);
+                                    that.userService.showSuccess('Swap complete tx: ' + txId);
+                                }, (err) => {
+                                    that.userService.handleError(err);
                                 }); 
                             });
                         }
-                    }, (error) => {
-                        that.userService.showError(error);
-                        console.log(error);
+                    }
+
+                }, (error) => {
+                    that.userService.handleError(error);
+                });
+            } catch(error) {
+                that.userService.handleError(error);
+            }
+        });
+
+        market.myOffers.array.forEach(offer => {
+            try { //run all in try/catch so that one error doesn't hose the rest
+
+                //see if they've accepted
+                if(market.offerAccept.hasOwnProperty(offer.hash))
+                {
+                    var accept = market.offerAccept[offer.hash];
+                    var myCoin = market.getOfferCoin(offer);
+                    //check participate
+                    myCoin.node.getSwapInfo(accept.hashedSecret, (swap: SwapInfo) => {
+                        if(swap.state == 0) {
+                            //participate
+                            if(!offer.txId) {
+                                //validate intiation
+                                var listing = market.listings.get(offer.listing);
+                                var theirCoin = market.getListingCoin(listing);
+                                //check initiate
+                                theirCoin.node.getSwapInfo(accept.hashedSecret, (swap: SwapInfo) => {
+                                    if(swap.state == 0) {
+                                        //they haven't initated, keep waiting
+                                    } else if (DexUtils.UTCTimestamp() - swap.initTimestamp < theirCoin.node.confirmTime) {
+                                        //hasn't been confirmed long enough, keep wiating
+                                    } else {
+                                        var amount = accept.amount;
+                                        if(listing.act == 'bid')
+                                            amount = amount * listing.price;
+
+                                        if(amount != swap.value) {
+                                            that.abortOffer(market, offer, 'swap initiated with wrong amount, got ' + swap.value + ' was expeting ' + amount);
+                                            //TODO: use bignumber everywhere to minimize rounding errors
+                                        } else if (swap.participant != offer.redeemAddress) {
+                                            that.abortOffer(market, offer, 'swap was sent to wrong address, got ' + swap.participant + ' instead of ' + offer.redeemAddress);
+                                        } else if (swap.emptied) {
+                                            that.abortOffer(market, offer, 'swap has already been completed for hashedSecret ' + accept.hashedSecret);
+                                        } else if (swap.state == 2)
+                                        {
+                                            that.abortOffer(market, offer, 'swap was participated, was expecting initiated, hashedSecret ' + accept.hashedSecret);
+                                        } else if (swap.state != 1) {
+
+                                            that.abortOffer(market, offer, 'invalide swap state ' + swap.state + ', hashedSecret ' + accept.hashedSecret);
+                                        } else if (swap.initTimestamp + swap.refundTime < DexUtils.UTCTimestamp() + 60 * 60 * 30) {
+                                            //TODO: make time spans dynamic, maybe base on user settings
+                                            //there is less than 30hrs left on their initiation, don't participate, abort
+                                            that.abortOffer(market, offer, 'swap has less than 30 hours left: hashedSecret: ' + accept.hashedSecret);
+                                        } 
+                                        else {
+                                            //initiation appears valid participate
+                                            that.userService.getTradePrivateKey(myCoin.name, function(key) {
+                                                myCoin.node.acceptSwap(accept, offer, listing, key, (txId: string) => {
+                                                    offer.txId = txId;
+                                                    market.offers.add(offer, true); // save
+                                                }, (error) => {
+                                                    that.userService.handleError(error);
+                                                });
+                                            });
+                                        }
+                                    }
+                                }, (err) => {
+                                    that.userService.handleError(err);
+                                });
+                            } else {
+                                //we have a participate txId, wait for it to be mined
+                            }
+                        } else { 
+                            if (swap.state == 1) {
+                                that.userService.handleError('Was expecting participated state, got initiated: hashedSecret ' + accept.hashedSecret);
+                            } else if (swap.state != 2) {
+                                that.userService.handleError('invalid swap state ' + swap.state + ' : hashedSecret ' + accept.hashedSecret);
+                            }
+
+                            //if there is a valid secret, try to redeem with it
+                            if(swap.secret && !swap.emptied)
+                            {
+                                that.userService.getTradePrivateKey(myCoin.name, function(key) {
+                                    theirCoin.node.redeemSwap(offer.redeemAddress, accept.hashedSecret, swap.secret, key, (txId: string) => {
+                                        that.finishOffer(market, offer);
+                                        that.userService.showSuccess('Swap complete tx: ' + txId);
+                                    }, (error) => {
+                                        that.userService.handleError(error); 
+                                    });
+                                });
+                            } else if (swap.emptied) {
+                                that.abortOffer(market, offer, 'swap with hashedSecret ' + accept.hashedSecret + ' has already been emptied');
+                            }
+                        }
+                    }, (err) => {
+                        that.userService.handleError(err);
                     });
                 }
-            } else if(trade.step == 2) {
-                if(isReceiver) { 
-                    // you are the receivier of the market trade, redeem HTLC swap with your secret
-                    var secret = this.storage.get(trade.hashedSecret);
-                    //redeem HTLC swap
-                    //TODO: verify transaction data (amount, recipient, refundTime, hashedSecret, initiator) 
-                    that.userService.getTradePrivateKey(myCoin.name, function(key) {
-                        myCoin.node.redeemSwap(receiver, initiator, trade, key, (txId) => {
-                            //TODO: need a way for users to manually input a transaction id to continue the swap in case the initial transaction is mined but this methed fails to return
-                            trade.txIds.push(txId);
-                            trade.step = 3; 
-                            that.getSocket(market, function(ws) {
-                                var step: StepMessage = {
-                                    act: 'step',
-                                    _id: trade._id,
-                                    step: 4,
-                                    txId: txId
-                                };
-                                ws.send(JSON.stringify(step));
-                            });
-                        }, (error) => {
-                            that.userService.handleError(error);
-                        });
-                    }, trade);
-                } else {
-                    //you are the initiator, check their transaction for the secret and finalize the swap
-                    
-                }
-            } else if (trade.step == 3 && isReceiver) {
-                //TODO: verify that you are done with the trade, and remove
-                market.myTrades.splice(i, 1);
-                i--;
-            } else if (trade.step == 4) {
-                //TODO: verify that you are done with the trade, and remove
-                market.myTrades.splice(i, 1);
-                i--;
+            } catch(error) {
+                that.userService.handleError(error);
             }
-        }
+        });
+        //TODO: remove offers for listings that accepted other offers, and remove those listings (after 48 hours)
+        //TODO: don't accept listings/offers/accepts more than 5 minutes past their timestamp unless they are specifically asked for (on startup)
     }
-
 }

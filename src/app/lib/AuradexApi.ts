@@ -1,78 +1,128 @@
 //interfaces for messages that are sent via websockets
 
 export interface MessageBase {
-    act: string; // message action
+    /**  message action */
+    act: string; 
 }
 
-//act: register
-export interface RegisterMessage extends MessageBase {
-    coinAddress: string;
-    baseAddress: string;
-    coinSig: string;
-    baseSig: string;
+/** act: bid | ask 
+ * enter a listing into the books
+ */
+export interface ListingMessage extends MessageBase {
+    /** address (coin for ask, base for bid), */
+    address: string; 
+
+    /** address to receive coins of swap */
+    redeemAddress: string; 
+
+    /** amount of COIN buying/selling, */
+    amount: number; 
+
+    /** minimum COIN amount to match this trade */
+    min: number; 
+
+    /** price in BASE, */
+    price: number; 
+
+    /**  UTC timestamp */
+    timestamp: number; 
+
+    /** hash of message (minus the sig, JSON stringified) */
+    hash?: string; 
+
+    /** signature of hash  */
+    sig?: string; 
 }
 
-//act: bid | ask
-export interface EntryMessage extends MessageBase {
-    address: string; //address (coin for ask, base for bid),
-    redeemAddress: string; //address to receive coins of swap
-    amount: number; //amount of coin buying/selling,
-    price: number; //price in base,
-    min: number; //minimum base amount to match this trade
-    nonce: number; //incremental number to prevent replay attacks
-    sig?: string; //signature proving legitimacy of offer
-
-    state?: string;
-    online?: number;
-    tradeAmount?: number;
-    timestamp?: Date;
-    _id?: string;
-}
-
-//act: nonce
-export interface NonceMessage extends MessageBase {
-    entryType: string; //bid or ask
-    val: number; //the nonce
-}
-
-//act: keyval
-//used to update a value of an entry
-export interface KeyValMessage extends MessageBase {
-    entryType: string; //bid, ask, or trade
-    _id: string;
-    key: string;
-    val: string;
-}
-
-//act: cancel
-//used to cancel a book entry
+/** act: cancel 
+ * used to cancel a book listing 
+ */
 export interface CancelMessage extends MessageBase {
-    entryType: string;
-    _id: string;
-    price: number;
+    /** hash of your listing you want to cancel */
+    listing: string; 
+
+    /**  UTC timestamp */
+    timestamp: number; 
+
+    /** hash of message (minus the sig, JSON stringified) */
+    hash?: string; 
+
+    /** signature of hash (use listing address to verify) */
+    sig?: string; 
+
 }
 
-//act: trade
-//represents a match of two entries
-export interface TradeMessage extends MessageBase {
-    cause: string; // 'bid' or 'ask' - action that initiated the match
-    id1: string; // bid or ask _id of trade initiator 
-    id2: string; // ask or bid _id of trade receiver 
-    state: string; // status 'active', 'complete', 'cancel'
-    step: number; // 0-3
-    timestamp: Date; // timestamp
-    amount: number; // trade amount of market coin
-    txIds: string[]; // the transactions ids for each step of the swap
-    hashedSecret?: string;
-    _id: string; //db id
+/** act: offer 
+ * offer to swap with a listing on the books, if accepted, trading can begin 
+ */
+export interface OfferMessage extends MessageBase {
+    /**  hash of listing  */
+    listing: string; 
+
+    /**  your sending address  */
+    address: string; 
+
+    /**  your receiving address  */
+    redeemAddress: string; 
+
+    /**  UTC timestamp */
+    timestamp: number; 
+
+    /**  number of seconds the offer is valid, typically 5 minutes, enough time for the lister to recieve and respond */
+    duration: number; 
+
+    /**  trade amount of COIN, must be greater than the listers set minimum */
+    amount: number; 
+
+    /**  minimum trade amount of COIN, lister can accept partial amount if they have multiple offers */
+    min: number;
+
+    /** hash of message (JSON stringified) */
+    hash?: string; 
+
+    /**  signature of hash  */
+    sig?: string; 
+
+    /** txId of swap participate, NOT PART OF HASH, is not sent with original message, used to track swap progress if this is accepted */
+    txId?: string;
+
 }
 
-//act: step 
-//represents a trade step has occured 
-export interface TradeMessage extends MessageBase {
-    _id: string; // _id of trade 
-    step: number; // 0-3
-    txId: string; // the transaction ids for the step of the swap
-    hashedSecret?: string;
+/** act: accept 
+ * lister accepts the offer, swapping can begin 
+ */
+export interface AcceptMessage extends MessageBase {
+    /**  hash of offer  */
+    offer: string; 
+
+    /**  trade amount of COIN, must be greater than the offers set minimum */
+    amount: number; 
+    
+    /**  20 byte ripemd hash of 32 byte secret */
+    hashedSecret: string; 
+
+    /**  UTC timestamp */
+    timestamp: number; 
+
+    /** transaction of swap initiation */
+    txId: string;
+
+    /**  hash of message */
+    hash?: string; 
+
+    /**  signature of hash */
+    sig?: string; 
+
 }
 
+export interface SwapInfo {
+    initTimestamp: number;
+    refundTime: number;
+    hashedSecret: string;
+    secret: string;
+    initiator: string;
+    participant: string;
+    value: number;
+    emptied: boolean;
+    state: number; // 0, 1, 2 = empty, initiated, participated
+}

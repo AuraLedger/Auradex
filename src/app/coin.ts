@@ -6,27 +6,20 @@ export class Coin {
     test: boolean;
     balances: any = {};
     balanceTimes: any = {};
-    bookBalances: any = {};
-    nonces: any = {};
     node: INode;
+    blockHeight: number;
 
     constructor(readonly config: CoinConfig) { 
         this.name = config.name;
         this.ticker = config.ticker ;
         this.test = config.test;
         this.node = NodeFactory.Create(config.node); 
+        this.blockHeight = Number(localStorage.getItem(this.name + 'blockHeight') || 1);
     }
 
-    getBookBalance(address: string): number {
-        return this.bookBalances[address] || 0;
-    }
-
-    addBookBalance(address: string, val: number): void {
-        this.bookBalances[address] = (this.bookBalances[address] || 0) + val;
-    }
-
-    subBookBalance(address: string, val: number): void {
-        this.bookBalances[address] = Math.max((this.bookBalances[address] || 0) - val, 0);
+    setBlockHeight(num: number): void {
+        this.blockHeight = num;
+        localStorage.setItem(this.name + 'blockHeight', ''+num);
     }
 
     setBalance(accountName: string, balance: number) {
@@ -40,14 +33,6 @@ export class Coin {
 
     getBalanceTime(accountName: string): Date {
         return this.balanceTimes[accountName];
-    }
-
-    setNonce(accountName: string, nonce: number) {
-        this.nonces[accountName] = nonce; 
-    }
-
-    getNonce(accountName: string) {
-        return this.nonces[accountName];
     }
 
     setNodeUrl(url: string) {

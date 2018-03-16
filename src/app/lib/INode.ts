@@ -1,4 +1,4 @@
-import { EntryMessage, TradeMessage } from './AuradexApi';
+import { ListingMessage, OfferMessage, AcceptMessage, SwapInfo } from './AuradexApi';
 
 export interface INode {
     getBalance(address: string, handler: any): void;
@@ -9,12 +9,13 @@ export interface INode {
     getInitFee(): number;
     getRedeemFee(): number;
 
-    getConfirmationCount(txId: string, success: (count: number) => void, fail: (error: any) => void): void;
-    requiredConfirmations: number;
+    confirmTime: number;
 
     //swap actions
-    initSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
-    acceptSwap(receiver: EntryMessage, initiator: EntryMessage, trade: TradeMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
-    redeemSwap();
-    checkStatus();
+    initSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
+    acceptSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
+    redeemSwap(address: string, hashedSecret: string, secret: string, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void;
+
+    //swap checks
+    getSwapInfo(hashedSecret, success: (info: SwapInfo) => void, fail: (err: any) => void): void; 
 }

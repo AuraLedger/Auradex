@@ -162,7 +162,7 @@ export class UserService {
 
     }
 
-    public areYouSure(title, msg, cb) {
+    public areYouSure(title, msg, yes: () => void, no?: () => void) {
         title = title || "Are you sure?";
         let dialogRef = this.dialog.open(AreYouSureComponent, {
             data: {
@@ -173,11 +173,13 @@ export class UserService {
 
         dialogRef.afterClosed().subscribe(result => {
             if(result)
-                cb();
+                yes();
+            else if (no)
+                no();
         });   
     }
 
-    public getPrivateKey(coin, cb, trade?) {
+    public getPrivateKey(coin: string, cb: (key: string) => void, trade?: any) {
         if (this.cryptoService.isUnlocked(this.activeAccount)) {
             var priv = this.cryptoService.getUnlockedPrivKey(this.getAccount(), coin);
             cb(priv);
