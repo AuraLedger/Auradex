@@ -40,9 +40,6 @@ export class Market {
     offerQueue = [];
     acceptQueue = [];
 
-    //TODO: use these to verify times, set for all objects
-    myTimes = {};  //hash to timestamp
-    
     cancelling: any = {};
     matched: any = {};
 
@@ -78,7 +75,6 @@ export class Market {
 
     addListing(listing: ListingMessage): boolean {
         if(this.listings.add(listing)) {
-            this.myTimes[listing.hash] = DexUtils.UTCTimestamp();
             if(listing.act == 'bid') {
                 this.bid.insert(listing);
                 this.calcSum(this.bid.array);
@@ -94,7 +90,6 @@ export class Market {
 
     addOffer(offer: OfferMessage): boolean {
         if(this.offers.add(offer)) {
-            this.myTimes[offer.hash] = DexUtils.UTCTimestamp(); //TODO: check myTimes as extra validation in case troll sends fake timestamp
             this.listingOffers.add(offer.listing, offer);
             return true;
         }
@@ -308,7 +303,6 @@ export class Market {
 
     addAccept(accept: AcceptMessage): boolean {
         if(this.accepts.add(accept)) {
-            this.myTimes[accept.hash] = DexUtils.UTCTimestamp();
             this.offerAccept[accept.offer] = accept;
             var offer = this.offers.get(accept.offer);
             this.listingAccepts.add(offer.listing, accept);

@@ -45,6 +45,16 @@ export class WebsocketService {
 
                 this.updateBookBalances(market.coin.name);
                 this.updateBookBalances(market.base.name);
+
+                //restore localStorage objects
+                for(var i = 0; i < localStorage.length; i++)
+                {
+                    var json = JSON.parse(localStorage.getItem(localStorage.key(i)));
+                    var mine = false;
+                    if(json.address == coinAddress || json.address == baseAddress)
+                        mine = true;
+                    this.processMessage(market, json, mine);
+                }
             }
 
             var that = this;
@@ -57,22 +67,29 @@ export class WebsocketService {
 
                 that.setNumbers(json);
 
-                switch(json.act) {
-                    case 'bid': that.addListing(json, market); break; 
-                    case 'ask': that.addListing(json, market); break; 
-                    case 'cancel': that.cancel(json, market); break;
-                    case 'offer': that.addOffer(json, market); break;
-                    case 'accept': that.addAccept(json, market); break;
-
-                        //TODO: need really good fee estimation
-                    case 'setFeeRates': that.setFeeRates(json, market); break;
-                    case 'peers': market.peers = json.peers;
-                    case 'err': that.userService.handleError(json.err); break; //should only come from server
-                } 
+                that.processMessage(market, json);
             };
 
             if(cb)
                 cb(ws);
+        }
+    }
+
+    private processMessage(market, json, mine?: boolean) {
+        var that = this;
+        that.setNumbers(json);
+
+        switch(json.act) {
+            case 'bid': mine ? market.addMyListing(json) : that.addListing(json, market); break; 
+            case 'ask': mine ? market.addMyListing(json) : that.addListing(json, market); break; 
+            case 'cancel': that.cancel(json, market); break;
+            case 'offer': mine ? market.addMyOffer(json) : that.addOffer(json, market); break;
+            case 'accept': mine ? market.addMyAccept(json) : that.addAccept(json, market); break;
+
+                //TODO: need really good fee estimation
+            case 'setFeeRates': that.setFeeRates(json, market); break;
+            case 'peers': market.peers = json.peers;
+            case 'err': that.userService.handleError(json.err); break; //should only come from server
         }
     }
 
@@ -89,8 +106,8 @@ export class WebsocketService {
 
     private setAttributeNumber(json: any, attr: string) {
         try {
-        if(json.hasOwnProperty(attr))
-            json[attr] = new BigNumber(json[attr]);
+            if(json.hasOwnProperty(attr))
+                json[attr] = new BigNumber(json[attr]);
         } catch(error) {
             //log but don't prevent other conversions
             console.log('error convering attribute ' + attr + ' on act ' + json.act + ' with value ' + json[attr]);

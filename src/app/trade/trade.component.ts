@@ -237,6 +237,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
             amount: new BigNumber(this.bidAmount),
             address: this.userService.getAccount()[this.market.base.name].address,
             redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
+            addressCoin: this.market.base.name,
+            redeemCoin: this.market.coin.name,
             min: new BigNumber(this.bidMin),
             timestamp: DexUtils.UTCTimestamp(),
         };
@@ -312,6 +314,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
             amount: new BigNumber(this.askAmount),
             address: this.userService.getAccount()[this.market.coin.name].address,
             redeemAddress: this.userService.getAccount()[this.market.base.name].address,
+            addressCoin: this.market.coin.name,
+            redeemCoin: this.market.base.name,
             min: new BigNumber(this.askMin),
             timestamp: DexUtils.UTCTimestamp(),
         };
@@ -447,7 +451,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
             },
 
             title: {
-                text: 'ARA/ETH'
+                text: ''
             },
 
 
