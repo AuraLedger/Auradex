@@ -10,15 +10,15 @@ const Web3 = require('web3');
 
 export class DexUtils {
     static verifyListing(listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
-        node.getBalance(listing.address, function(err, bal) {
+        node.getBalance(listing.address, function(err, bal: string) {
             if(err)
                 fail(err);
             else
-                DexUtils.verifyListingFull(listing, node, bal, success, fail);
+                DexUtils.verifyListingFull(listing, node, new BigNumber(bal), success, fail);
         });
     }
 
-    static verifyListingFull(entry: ListingMessage, node: INode, bal: number, 
+    static verifyListingFull(entry: ListingMessage, node: INode, bal: BigNumber, 
         success: () => void, fail: (err: any) => void) {
 
         //verify min
@@ -55,15 +55,15 @@ export class DexUtils {
     }
 
     static verifyOffer(offer: OfferMessage, listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
-        node.getBalance(offer.address, function(err, bal) {
+        node.getBalance(offer.address, function(err, bal: string) {
             if(err)
                 fail(err);
             else
-                DexUtils.verifyOfferFull(offer, listing, node, bal, success, fail);
+                DexUtils.verifyOfferFull(offer, listing, node, new BigNumber(bal), success, fail);
         });
     }
 
-    static verifyOfferFull(offer: OfferMessage, listing: ListingMessage, node: INode, bal: number, 
+    static verifyOfferFull(offer: OfferMessage, listing: ListingMessage, node: INode, bal: BigNumber, 
         success: () => void, fail: (err: any) => void) {
 
         //verify min
@@ -107,15 +107,15 @@ export class DexUtils {
     }
 
     static verifyAccept(accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
-        node.getBalance(listing.address, function(err, bal) {
+        node.getBalance(listing.address, function(err, bal: string) {
             if(err)
                 fail(err);
             else
-                DexUtils.verifyAcceptFull(accept, offer, listing, node, bal, success, fail);
+                DexUtils.verifyAcceptFull(accept, offer, listing, node, new BigNumber(bal), success, fail);
         });
     }
 
-    static verifyAcceptFull(accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, node: INode, bal: number, 
+    static verifyAcceptFull(accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, node: INode, bal: BigNumber, 
         success: () => void, fail: (err: any) => void) {
 
         if(accept.amount > offer.amount) {
@@ -225,7 +225,7 @@ export class DexUtils {
             var hsh = DexUtils.sha3(msg);
             if(hsh != hash)
                 fail('hash did not match message')
-            else if(address != node.recover(hash, sig || ''))
+            else if(address != node.recover(msg, sig || ''))
                 fail('invalid signature')
             else
                 success();
