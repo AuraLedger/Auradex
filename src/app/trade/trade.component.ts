@@ -97,6 +97,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     ws.send(JSON.stringify(cancelMessage));
                     that.market.cancel(cancelMessage);
                     delete that.market.cancelling[listing.hash];
+                    this.websocketService.updateBookBalances(coin.name);
                 });
             }, () => {
                 delete that.market.cancelling[listing.hash];
@@ -124,7 +125,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
             val = 0;
         val = Number(val.toFixed(8));
         this.askMin = val;
-        this.setAskMinPercent(this.askMin * 100 / this.askAmount);
+        if(this.askAmount > 0)
+            this.setAskMinPercent(this.askMin * 100 / this.askAmount);
     }
 
     calcAskMin() {
@@ -174,7 +176,8 @@ export class TradeComponent implements OnInit, AfterViewInit {
             val = 0;
         val = Number(val.toFixed(8));
         this.bidMin = val;
-        this.setBidMinPercent(this.bidMin * 100 / this.bidAmount);
+        if(this.bidAmount > 0)
+            this.setBidMinPercent(this.bidMin * 100 / this.bidAmount);
     }
 
     calcBidMin() {
@@ -212,7 +215,16 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     //TODO: make sure they don't also have an ask with a better price
     placeBid() {
-        var size: BigNumber = (new BigNumber(Number(this.bidAmount || 0))).times(this.bidPrice);
+        var amount = new BigNumber((this.bidAmount || 0).toString());
+        var price = new BigNumber((this.bidPrice || 0).toString());
+        var min = new BigNumber((this.bidMin || 0).toString());
+
+        if(amount.isLessThanOrEqualTo(0))
+            return;
+        if(price.isLessThanOrEqualTo(0))
+            return;
+
+        var size: BigNumber = amount.times(price);
         if(size.isGreaterThan(this.market.baseAvailable)) {
             this.userService.showError('not enough funds');
             return;
@@ -228,18 +240,21 @@ export class TradeComponent implements OnInit, AfterViewInit {
             return;
         }
 
-        if(this.market.base.node.getInitFee().times(10).isGreaterThan(this.bidMin * this.bidPrice))
-            this.bidMin = this.market.base.node.getInitFee().times(10).div(this.bidPrice).toNumber();
+        if(this.market.base.node.getInitFee().times(10).isGreaterThan(min.times(price))) {
+            min = this.market.base.node.getInitFee().times(10).div(price);
+            this.bidMin = min.toNumber();
+            this.bidMinChanged(this.bidMin);
+        }
 
         var entry: ListingMessage = {
             act: 'bid',
-            price: new BigNumber(this.bidPrice),
-            amount: new BigNumber(this.bidAmount),
+            price: price,
+            amount: amount,
             address: this.userService.getAccount()[this.market.base.name].address,
             redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
             addressCoin: this.market.base.name,
             redeemCoin: this.market.coin.name,
-            min: new BigNumber(this.bidMin),
+            min: min,
             timestamp: DexUtils.UTCTimestamp(),
         };
 
@@ -255,7 +270,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     if(increment) 
                         doneCount++;
                     if(doneCount == offers.length) {
-                        if(entry.amount > entry.min)
+                        if(entry.amount.isGreaterThan(entry.min))
                         {
                             var msg = DexUtils.getListingSigMessage(entry);
                             entry.hash = DexUtils.sha3(msg);
@@ -266,11 +281,11 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     }
                 };
                 offers.forEach((offer) => {
-                    var listing = that.market.listings[offer.listing];
+                    var listing = that.market.listings.get(offer.listing);
                     DexUtils.verifyListing(listing, that.market.coin.node, () => {
                         var msg = DexUtils.getOfferSigMessage(offer);
                         offer.hash = DexUtils.sha3(msg);
-                        offer.sig = that.market.base.node.signMessage(offer.hash, key);
+                        offer.sig = that.market.base.node.signMessage(msg, key);
                         ws.send(JSON.stringify(offer));
                         that.bidAmount = 0;
                         that.userService.showSuccess("Offer has been placed, waiting for lister to accept");
@@ -289,7 +304,12 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
     //TODO: make sure they don't also have an bid with a better price
     placeAsk() {
-        if(this.market.coinAvailable.isLessThan(this.askAmount)) {
+
+        var amount = new BigNumber((this.askAmount || 0).toString());
+        var price = new BigNumber((this.askPrice || 0).toString());
+        var min = new BigNumber((this.askMin || 0).toString());
+
+        if(this.market.coinAvailable.isLessThan(amount)) {
             this.userService.showError('not enough funds');
             return;
         }
@@ -299,24 +319,27 @@ export class TradeComponent implements OnInit, AfterViewInit {
             return;
         }
 
-        if(this.market.base.node.getInitFee().times(10).isGreaterThan(this.askAmount * this.askPrice)) {
+        var size: BigNumber = amount.times(price);
+        if(this.market.base.node.getInitFee().times(10).isGreaterThan(size)) {
             this.userService.showError('amount is too small, must be worth atleast ' + this.market.base.node.getInitFee().times(10).toFixed(8) + ' ' + this.market.base.ticker + ' (10 times the average network fee)');
             return;
         }
 
-        if(this.market.base.node.getInitFee().times(10).isGreaterThan(this.askMin * this.askPrice)) {
-            this.askMin = this.market.base.node.getInitFee().times(10).div(this.askPrice).toNumber();
+        if(this.market.base.node.getInitFee().times(10).isGreaterThan(min.times(price))) {
+            min = this.market.base.node.getInitFee().times(10).div(price);
+            this.askMin = min.toNumber();
+            this.askMinChanged(this.askMin);
         }
 
         var entry: ListingMessage = {
             act: 'ask',
-            price: new BigNumber(this.askPrice),
-            amount: new BigNumber(this.askAmount),
+            price: price,
+            amount: amount,
             address: this.userService.getAccount()[this.market.coin.name].address,
             redeemAddress: this.userService.getAccount()[this.market.base.name].address,
             addressCoin: this.market.coin.name,
             redeemCoin: this.market.base.name,
-            min: new BigNumber(this.askMin),
+            min: min,
             timestamp: DexUtils.UTCTimestamp(),
         };
 
@@ -332,7 +355,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     if(increment) 
                         doneCount++;
                     if(doneCount == offers.length) {
-                        if(entry.amount > entry.min)
+                        if(entry.amount.isGreaterThan(entry.min))
                         {
                             var msg = DexUtils.getListingSigMessage(entry);
                             entry.hash = DexUtils.sha3(msg);
@@ -343,7 +366,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     }
                 };
                 offers.forEach((offer) => {
-                    var listing = that.market.listings[offer.listing];
+                    var listing = that.market.listings.get(offer.listing);
                     DexUtils.verifyListing(listing, that.market.base.node, () => {
                         var msg = DexUtils.getOfferSigMessage(offer);
                         offer.hash = DexUtils.sha3(msg);

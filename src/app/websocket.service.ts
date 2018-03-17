@@ -136,17 +136,20 @@ export class WebsocketService {
             else if (market.base.name == coin)
                 market.baseAvailable = BigNumber.maximum(market.baseBalance.minus(sum), 0);
         });
-
     }
 
     cancel(obj: CancelMessage, market) {
         var listing = market.listings.get(obj.listing);
-        DexUtils.verifyCancelSig(obj, market.getListingCoin(listing).node, listing.address, () => {
-            market.cancel(obj);
-        }, (error) => {
-            //log but don't show
-            console.log(error);
-        });
+        if(!listing)
+            market.cancelQueue.push(obj);
+        else {
+            DexUtils.verifyCancelSig(obj, market.getListingCoin(listing).node, listing.address, () => {
+                market.cancel(obj);
+            }, (error) => {
+                //log but don't show
+                console.log(error);
+            });
+        }
     }
 
     setFeeRates(obj, market) {
@@ -174,6 +177,11 @@ export class WebsocketService {
             var temp = market.offerQueue;
             market.offerQueue = [];
             temp.forEach(offer => that.addOffer(offer, market));
+
+            //reevaluate cancel queue
+            temp = market.cancelQueue;
+            market.cancelQueue = [];
+            temp.forEach(cncl=> that.cancel(cncl, market));
         }, function(err) {
             //log but don't show
             console.log(err);

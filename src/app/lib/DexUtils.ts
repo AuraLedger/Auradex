@@ -267,7 +267,7 @@ export class DexUtils {
 
     static removeFromBook(book: SortedArray, obj: CancelMessage): ListingMessage | null {
         for(var i = 0; i < book.array.length; i++) {
-            if(book.array[i].hash == obj.hash) {
+            if(book.array[i].hash == obj.listing) {
                 return book.array.splice(i, 1)[0];
             }
         }

@@ -39,6 +39,7 @@ export class Market {
     //TODO: periodically clean these out
     offerQueue = [];
     acceptQueue = [];
+    cancelQueue = [];
 
     cancelling: any = {};
     matched: any = {};
@@ -257,7 +258,7 @@ export class Market {
 
     getActCoin(act: string): Coin {
         if(act == 'bid') return this.base;
-        if(act == 'act') return this.coin;
+        if(act == 'ask') return this.coin;
         throw 'invlid act ' + act;
     }
 
@@ -267,6 +268,7 @@ export class Market {
 
     cancel(message: CancelMessage) {
         //TODO: don't remove from storage, just set cancel property when this is wrapped with a client object
+        //TODO: don't cancel if it's been accepted already
         var listing = this.listings.get(message.listing);
         if(listing.act == 'bid') {
             DexUtils.removeFromBook(this.bid, message); 
@@ -274,9 +276,9 @@ export class Market {
         if(listing.act == 'ask') {
             DexUtils.removeFromBook(this.ask, message);
         }
-
-        //TODO: cancel offers for this lising
-        this.listingOffers.get(listing.hash).forEach(o => this.cancelOffer(o));
+        
+        this.myListings.remove(message.listing);
+        (this.listingOffers.get(listing.hash) || []).forEach(o => this.cancelOffer(o));
     }
 
     cancelOffer(offer: OfferMessage) {
