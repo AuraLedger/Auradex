@@ -51,10 +51,22 @@ export class WebsocketService {
                 {
                     var json = JSON.parse(localStorage.getItem(localStorage.key(i)));
                     var mine = false;
-                    if(json.address == coinAddress || json.address == baseAddress)
+                    if(json.address == coinAddress || json.address == baseAddress) {
                         mine = true;
+                    }
+                    if(json.act == 'offer') {
+                        market.offerQueue.push(json);
+                        continue;
+                    }
+                    if(json.act == 'accept') {
+                        market.acceptQueue.push(json);
+                        continue
+                    }
                     this.processMessage(market, json, mine);
                 }
+
+                this.reevalOfferQueue(market);
+                this.reevalAcceptQueue(market);
             }
 
             var that = this;
@@ -172,20 +184,24 @@ export class WebsocketService {
         var that = this;
         DexUtils.verifyListing(listing, market.getListingCoin(listing).node, function() {
             market.addListing(listing);
-
-            //reevaluate offer queue
-            var temp = market.offerQueue;
-            market.offerQueue = [];
-            temp.forEach(offer => that.addOffer(offer, market));
-
-            //reevaluate cancel queue
-            temp = market.cancelQueue;
-            market.cancelQueue = [];
-            temp.forEach(cncl=> that.cancel(cncl, market));
+            that.reevalOfferQueue(market);
+            that.reevalCancelQueue(market);
         }, function(err) {
             //log but don't show
             console.log(err);
         });
+    }
+
+    private reevalCancelQueue(market: Market) {
+        var temp = market.cancelQueue;
+        market.cancelQueue = [];
+        temp.forEach(cncl => this.cancel(cncl, market));
+    }
+
+    private reevalOfferQueue(market: Market) {
+        var temp = market.offerQueue;
+        market.offerQueue = [];
+        temp.forEach(offer => this.addOffer(offer, market));
     }
 
     private addOffer(offer: OfferMessage, market: Market): void {
@@ -250,15 +266,17 @@ export class WebsocketService {
                     });
                 };
                 //reevaluate accept queue
-                var temp = market.acceptQueue;
-                market.acceptQueue = [];
-                temp.forEach(accept => that.addAccept(accept, market));
-
+                that.reevalAcceptQueue(market);
             }
         }, (err) => {
             console.log(err);
         });
+    }
 
+    private reevalAcceptQueue(market: Market) {
+        var temp = market.acceptQueue;
+        market.acceptQueue = [];
+        temp.forEach(accept => this.addAccept(accept, market));
     }
 
     private addAccept(accept: AcceptMessage, market: Market): void {

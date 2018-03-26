@@ -31,7 +31,7 @@ export class EtherNode implements INode {
             if(err)
                 handler(err, null);
             else
-                handler(null, that.web3.utils.fromWei(r, 'ether'));
+                handler(null, new BigNumber(that.web3.utils.fromWei(r, 'ether')));
         });
     }
 

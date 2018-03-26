@@ -2,7 +2,7 @@ import { ListingMessage, OfferMessage, AcceptMessage, SwapInfo } from './Auradex
 import { BigNumber } from 'bignumber.js';
 
 export interface INode {
-    getBalance(address: string, handler: any): void;
+    getBalance(address: string, handler: (err: any, balance: BigNumber) => void): void;
     recover(msg: string, sig: string): string;
     applyUserSettings(settings: any): void;
     signMessage(msg: string, privateKey: string): string;

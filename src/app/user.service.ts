@@ -8,6 +8,7 @@ import { CoinService } from './coin.service'
 import { CoreService } from './core.service'
 import { PasswordComponent } from './password/password.component'
 import { AreYouSureComponent } from './are-you-sure/are-you-sure.component';
+import { BigNumber } from 'bignumber.js';
 
 @Injectable()
 export class UserService {
@@ -61,7 +62,7 @@ export class UserService {
         }
     }
 
-    public getBalance(coin: string, cb) {
+    public getBalance(coin: string, cb: (b: BigNumber) => void): void {
         var b = this.coinService.coind[coin].getBalance(this.activeAccount);
         var t = this.coinService.coind[coin].getBalanceTime(this.activeAccount);
         var n = new Date();
@@ -76,7 +77,7 @@ export class UserService {
             cb(b);
     }
 
-    private _getBalance(coin: string, cb) {
+    private _getBalance(coin: string, cb: (b: BigNumber) => void): void {
         var that = this;
         var node = this.coinService.coind[coin].node; 
         node.getBalance(this.getAccount()[coin].address, function (err, result) {

@@ -97,7 +97,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     ws.send(JSON.stringify(cancelMessage));
                     that.market.cancel(cancelMessage);
                     delete that.market.cancelling[listing.hash];
-                    this.websocketService.updateBookBalances(coin.name);
+                    that.websocketService.updateBookBalances(coin.name);
                 });
             }, () => {
                 delete that.market.cancelling[listing.hash];
