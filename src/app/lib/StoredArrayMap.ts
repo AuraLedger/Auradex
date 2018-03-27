@@ -12,9 +12,16 @@ if (typeof localStorage === 'undefined' || localStorage === null) {
  */
 export class StoredArrayMap extends ArrayMap {
 
+    private marketId: string;
+
+    constructor(marketId: string, keyProp: string, keyFunc?: (item: any) => string) {
+        super(keyProp, keyFunc);
+        this.marketId = marketId;
+    }
+
     add(item: any, overwrite?: boolean): boolean {
         if(super.add(item, overwrite)) {
-            localStorage.setItem(this.keyFunc(item), JSON.stringify(item));
+            localStorage.setItem(this.marketId + this.keyFunc(item), JSON.stringify(item));
             return true;
         }
         return false;
@@ -23,6 +30,6 @@ export class StoredArrayMap extends ArrayMap {
     remove(key: string, ensure?: boolean) {
         var item = super.remove(key, ensure);
         if(item)
-            localStorage.removeItem(this.keyFunc(item));
+            localStorage.removeItem(this.marketId + this.keyFunc(item));
     }
 }

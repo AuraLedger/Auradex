@@ -9,7 +9,10 @@ import { BigNumber } from 'bignumber.js';
 import { LocalStorageService } from 'angular-2-local-storage';
 import { CryptoService } from './crypto.service';
 import * as RIPEMD160 from 'ripemd160';
-import * as randombytes from 'randombytes';
+import * as randomBytes from 'randombytes';
+
+//declare var require: any
+//const randombytes = require('randombytes');
 
 @Injectable()
 export class WebsocketService {
@@ -21,7 +24,24 @@ export class WebsocketService {
         private coinService: CoinService,
         private storage: LocalStorageService,
         private cryptoService: CryptoService
-    ) { }
+    ) { 
+
+        //test random and ripemd160
+        /*
+        var that = this;
+        randomBytes(32, function(err, buffer) {
+            if(err)
+                that.userService.handleError(err);
+            else {
+                console.log(buffer);
+                var secret = buffer.toString('hex');
+                console.log(secret);
+                var hashedSecret = new RIPEMD160().update(buffer).digest('hex');
+                console.log(hashedSecret);
+            }
+        });
+         */
+    }
 
     disconnectAll() {
         Object.keys(this.socks).filter(k => this.socks.hasOwnProperty(k)).forEach(k => {
@@ -49,6 +69,9 @@ export class WebsocketService {
                 //restore localStorage objects
                 for(var i = 0; i < localStorage.length; i++)
                 {
+                    var key = localStorage.key(i);
+                    if(!key.startsWith(market.id))
+                        continue;
                     var json = JSON.parse(localStorage.getItem(localStorage.key(i)));
                     var mine = false;
                     if(json.address == coinAddress || json.address == baseAddress) {
@@ -225,7 +248,7 @@ export class WebsocketService {
                         // you are the lister of the market trade, initiate HTLC swap 
                         // Generate random 32byte secret and create RIPEMD160 hash from it 
                         var myCoin = market.getListingCoin(listing);
-                        randombytes.getRandomBytes(32, function(err, buffer) {
+                        randomBytes(32, function(err, buffer) {
                             if(err)
                                 that.userService.handleError(err);
                             else {

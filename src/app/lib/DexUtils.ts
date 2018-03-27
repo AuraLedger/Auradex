@@ -10,11 +10,11 @@ const Web3 = require('web3');
 
 export class DexUtils {
     static verifyListing(listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
-        node.getBalance(listing.address, function(err, bal: string) {
+        node.getBalance(listing.address, function(err, bal: BigNumber) {
             if(err)
                 fail(err);
             else
-                DexUtils.verifyListingFull(listing, node, new BigNumber(bal), success, fail);
+                DexUtils.verifyListingFull(listing, node, bal, success, fail);
         });
     }
 
@@ -55,11 +55,11 @@ export class DexUtils {
     }
 
     static verifyOffer(offer: OfferMessage, listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
-        node.getBalance(offer.address, function(err, bal: string) {
+        node.getBalance(offer.address, function(err, bal: BigNumber) {
             if(err)
                 fail(err);
             else
-                DexUtils.verifyOfferFull(offer, listing, node, new BigNumber(bal), success, fail);
+                DexUtils.verifyOfferFull(offer, listing, node, bal, success, fail);
         });
     }
 
@@ -107,11 +107,11 @@ export class DexUtils {
     }
 
     static verifyAccept(accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
-        node.getBalance(listing.address, function(err, bal: string) {
+        node.getBalance(listing.address, function(err, bal: BigNumber) {
             if(err)
                 fail(err);
             else
-                DexUtils.verifyAcceptFull(accept, offer, listing, node, new BigNumber(bal), success, fail);
+                DexUtils.verifyAcceptFull(accept, offer, listing, node, bal, success, fail);
         });
     }
 

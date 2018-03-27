@@ -22,9 +22,9 @@ export class Market {
 
     peers: number = 0;
 
-    listings: StoredArrayMap = new StoredArrayMap('hash');
-    offers: StoredArrayMap = new StoredArrayMap('hash');
-    accepts: StoredArrayMap = new StoredArrayMap('hash');
+    listings: StoredArrayMap;
+    offers: StoredArrayMap;
+    accepts: StoredArrayMap;
 
     myListings: ArrayMap = new ArrayMap('hash');
     myOffers: ArrayMap = new ArrayMap('hash');
@@ -72,6 +72,10 @@ export class Market {
     ) { 
         this.webSocketServerURL = this.config.webSocketServerURL;
         this.id = this.config.id || this.coin.ticker + '-' + this.base.ticker;
+
+        this.listings = new StoredArrayMap(this.id, 'hash');
+        this.offers = new StoredArrayMap(this.id, 'hash');
+        this.accepts = new StoredArrayMap(this.id, 'hash');
     }
 
     addListing(listing: ListingMessage): boolean {

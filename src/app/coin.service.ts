@@ -24,6 +24,8 @@ export class CoinService {
                 throw "Multiple markets found with id " + mark.id;
             this.marketd[mark.id] = mark;
         }
+
+        //restore market orders
     }
 
     markets: MarketConfig[] = [

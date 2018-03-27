@@ -252,8 +252,6 @@ export class TradeComponent implements OnInit, AfterViewInit {
             amount: amount,
             address: this.userService.getAccount()[this.market.base.name].address,
             redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
-            addressCoin: this.market.base.name,
-            redeemCoin: this.market.coin.name,
             min: min,
             timestamp: DexUtils.UTCTimestamp(),
         };

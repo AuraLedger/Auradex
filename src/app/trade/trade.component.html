@@ -186,7 +186,7 @@
             <div fxFlex="18">{{accept.amount | bigNumber: '1.8-8'}}</div>
             <div fxFlex="18">{{market.myListings[market.offers[accept.offer].listing].price | bigNumber: '1.8-8'}}</div>
             <div fxFlex="18">{{accept.amount.times(market.myListings[market.offers[accept.offer].listing].price) | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="26" style="text-align: center">{{accept.timestamp | date : 'short' }}</div>
+            <div fxFlex="26" style="text-align: center">{{accept.timestamp * 1000 | date : 'short' }}</div>
             <button mat-button color="accent" fxFlex="10" (click)="cancel(accept)">Cancel</button>
           </div>
         </div>
@@ -220,7 +220,7 @@
             <div fxFlex="18">{{offer.amount | bigNumber: '1.8-8'}}</div>
             <div fxFlex="18">{{market.listings[offer.listing].price | bigNumber: '1.8-8'}}</div>
             <div fxFlex="18">{{offer.amount.times(market.listings[offer.listing].price) | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="26" style="text-align: center">{{offer.timestamp | date : 'short' }}</div>
+            <div fxFlex="26" style="text-align: center">{{offer.timestamp * 1000 | date : 'short' }}</div>
             <button mat-button color="accent" fxFlex="10" (click)="cancel(offer)">Cancel</button>
           </div>
         </div>
@@ -254,7 +254,7 @@
             <div fxFlex="18">{{bid.amount | bigNumber: '1.8-8'}}</div>
             <div fxFlex="18">{{bid.price | bigNumber: '1.8-8'}}</div>
             <div fxFlex="18">{{bid.amount.times(bid.price) | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="26" style="text-align: center">{{bid.timestamp | date : 'short' }}</div>
+            <div fxFlex="26" style="text-align: center">{{bid.timestamp * 1000 | date : 'short' }}</div>
             <button mat-button color="accent" fxFlex="10" (click)="cancel(bid)">Cancel</button>
           </div>
         </div>

@@ -16,12 +16,6 @@ export interface ListingMessage extends MessageBase {
     /** address to receive coins of swap */
     redeemAddress: string; 
 
-    /** coin name of address (coin for ask, base for bid) */
-    addressCoin: string;
-
-    /** coin name of redemm address */
-    redeemCoin: string;
-
     /** amount of COIN buying/selling, */
     amount: BigNumber; 
 
