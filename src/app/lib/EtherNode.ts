@@ -145,7 +145,7 @@ export class EtherNode implements INode {
         });
 
         var refundTime = DexUtils.UTCTimestamp() + 60 * 60 * 48; //add 48 hours
-        var hashedSecret = Web3.utils.hexToBytes(accept.hashedSecret);
+        var hashedSecret = this._hexString(accept.hashedSecret);
 
         var amount: BigNumber = new BigNumber(0);
         if(listing.act == 'bid') {
@@ -173,7 +173,7 @@ export class EtherNode implements INode {
                     if(err)
                         fail(err);
                     else {
-                        that.web3.eth.sendSignedTransaction(signedTx, function(err, txId) {
+                        that.web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(err, txId) {
                             if(err)
                                 fail(err);
                             else
@@ -194,7 +194,7 @@ export class EtherNode implements INode {
 
         //TODO: make sure there is atleast 30 hours remaining on the initiate swap
         var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 24; //add 24 hours
-        var hashedSecret = Web3.utils.hexToBytes(accept.hashedSecret);
+        var hashedSecret = this._hexString(accept.hashedSecret);
 
         var participateMethod = contract.methods.participate(refundTime, hashedSecret, listing.redeemAddress);
 
@@ -222,7 +222,7 @@ export class EtherNode implements INode {
                     if(err)
                         fail(err);
                     else {
-                        that.web3.eth.sendSignedTransaction(signedTx, function(err, txId) {
+                        that.web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(err, txId) {
                             if(err)
                                 fail(err);
                             else
@@ -243,8 +243,8 @@ export class EtherNode implements INode {
 
         //TODO: make sure there is atleast 30 hours remaining on the initiate swap
         var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 24; //add 24 hours
-        var _hashedSecret = Web3.utils.hexToBytes(hashedSecret);
-        var _secret = Web3.utils.hexToBytes(secret);
+        var _hashedSecret = this._hexString(hashedSecret);
+        var _secret = this._hexString(secret);
 
         var redeemMethod = contract.methods.redeem(secret, hashedSecret);
 
@@ -266,7 +266,7 @@ export class EtherNode implements INode {
                     if(err)
                         fail(err);
                     else {
-                        that.web3.eth.sendSignedTransaction(signedTx, function(err, txId) {
+                        that.web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(err, txId) {
                             if(err)
                                 fail(err);
                             else
@@ -283,6 +283,16 @@ export class EtherNode implements INode {
         let sum = x.add(1);
         let result = '0x' + sum.toString(16);
         return result;
+    }
+
+    private _hexToBytes(hex: string) {
+        return Web3.utils.hexToBytes(this._hexString(hex));
+    }
+
+    private _hexString(hex: string) {
+        if(!hex.startsWith('0x'))
+            return '0x' + hex;
+        return hex;
     }
 
     getSwapInfo(hashedSecret, success: (info: SwapInfo) => void, fail: (err: any) => void): void {

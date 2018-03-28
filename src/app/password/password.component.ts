@@ -24,7 +24,11 @@ export class PasswordComponent {
 
     ok() {
         //check password and return privatekey
-        var privkey = this.cryptoService.decryptPrivateKey(this.data.account, this.data.coin.name, this.password, this.unlock);
-        this.dialogRef.close(privkey);
+        try {
+            var privkey = this.cryptoService.decryptPrivateKey(this.data.account, this.data.coin.name, this.password, this.unlock);
+            this.dialogRef.close(privkey);
+        } catch(error) {
+           this.data.userService.handleError(error); 
+        }
     }
 }

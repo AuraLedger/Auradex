@@ -97,7 +97,7 @@ export class UserService {
     }
 
     public handleError(error: any) {
-        console.log(error);
+        console.error(error);
         var msg: string = "";
         if(typeof error === 'string')
             msg = error;
@@ -190,7 +190,8 @@ export class UserService {
                 data: {
                     account: this.getAccount(),
                     coin: this.coinService.coind[coin],
-                    trade: trade
+                    trade: trade,
+                    userService: this
                 }
             });
 

@@ -1,0 +1,8 @@
+{
+    "name": "Auradex",
+    "productName": "Auradex",
+    "version": "1.0.0",
+    "description": "Decentralized Exchange powerd by cross-chain atomic swaps",
+    "main": "electron.prod.js",
+    "license": "MIT"
+}
