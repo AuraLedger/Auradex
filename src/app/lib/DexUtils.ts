@@ -22,7 +22,7 @@ export class DexUtils {
         success: () => void, fail: (err: any) => void) {
 
         //verify min
-        if(entry.min > entry.amount) {
+        if(entry.min.isGreaterThan(entry.amount)) {
             fail('min ' + entry.min + ' is > than amount ' + entry.amount );
             return;
         }
@@ -67,12 +67,12 @@ export class DexUtils {
         success: () => void, fail: (err: any) => void) {
 
         //verify min
-        if(offer.min > offer.amount) {
+        if(offer.min.isGreaterThan(offer.amount)) {
             fail('min ' + listing.min + ' is > than offer amount ' + offer.amount );
             return;
         }
 
-        if(offer.amount > listing.amount) {
+        if(offer.amount.isGreaterThan(listing.amount)) {
             fail('offer amount is greater than listing amount');
             return;
         }
@@ -118,11 +118,11 @@ export class DexUtils {
     static verifyAcceptFull(accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, node: INode, bal: BigNumber, 
         success: () => void, fail: (err: any) => void) {
 
-        if(accept.amount > offer.amount) {
+        if(accept.amount.isGreaterThan(offer.amount)) {
             fail('accept amount is greater than offer amount');
             return;
         }
-        if(accept.amount < offer.min) {
+        if(accept.amount.isLessThan(offer.min)) {
             fail('accept amount is below offer min');
             return;
         }
@@ -275,8 +275,8 @@ export class DexUtils {
     }
 
     static findMatches(listings: ListingMessage[], offer: ListingMessage, isBid: boolean): OfferMessage[] {
-        var compareBids = (a,b) => a <= b;
-        var compareAsks = (a,b) => b <= a;
+        var compareBids = (a,b) => a.isLessThanOrEqualTo(b);
+        var compareAsks = (a,b) => b.isLessThanOrEqualTo(a);
         var compare = (isBid ? compareBids : compareAsks);
         var matches: OfferMessage[] = [];
         for(var i = 0; i < listings.length; i++) {
@@ -288,7 +288,7 @@ export class DexUtils {
 
                 var listingSize = listing.amount.times(listing.price);
                 var offerSize = offer.amount.times(offer.price);
-                if(listing.amount >= offer.min && offer.amount >= listing.min)
+                if(listing.amount.isGreaterThanOrEqualTo(offer.min) && offer.amount.isGreaterThanOrEqualTo(listing.min))
                 {
                     //add match
                     var tradeAmount = BigNumber.minimum(offer.amount, listing.amount);
@@ -304,7 +304,7 @@ export class DexUtils {
                         timestamp: DexUtils.UTCTimestamp(),
                         duration: 60 * 5, // 5 min TODO: get from settings
                     });
-                    if(offer.amount < offer.min)
+                    if(offer.amount.isLessThan(offer.min))
                         return matches;
                 }
             }

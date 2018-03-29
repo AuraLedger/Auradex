@@ -79,7 +79,7 @@ export class WalletComponent {
 
     var that = this;
     dialogRef.afterClosed().subscribe(result => {
-      that.balances[coin.name] = that.balances[coin.name] - result.amount;
+      that.balances[coin.name] = that.balances[coin.name].minus(result.amount);
     });
   }
 

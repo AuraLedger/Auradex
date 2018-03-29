@@ -29,7 +29,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
     market: Market;
     account;
 
-    //orderInputs
+    //orderInputs (not using BigNumber here since they are bound to html inputs)
     bidAmount: number;
     bidPrice: number;
     bidMin: number;
@@ -230,7 +230,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
             return;
         } 
 
-        if(this.market.coinAvailable < this.market.coin.node.getRedeemFee()) {
+        if(this.market.coinAvailable.isLessThan(this.market.coin.node.getRedeemFee())) {
             this.userService.showError('You need alteast ' + this.market.coin.node.getRedeemFee().toFixed(8) + ' ' + this.market.coin.ticker + ' for the redeem transaction to complete this trade');
             return;
         }
@@ -312,7 +312,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
             return;
         }
 
-        if(this.market.baseAvailable < this.market.base.node.getRedeemFee()) {
+        if(this.market.baseAvailable.isLessThan(this.market.base.node.getRedeemFee())) {
             this.userService.showError('You need alteast ' + this.market.base.node.getRedeemFee().toFixed(8) + ' ' + this.market.base.ticker + ' for the redeem transaction to complete this trade');
             return;
         }

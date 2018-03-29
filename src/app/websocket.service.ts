@@ -399,25 +399,25 @@ export class WebsocketService {
         }
     }
 
-    private abortAccept(market, accept: AcceptMessage, reason?: string) {
-        market.aborted.add(accept);
-        market.myAccepts.remove(accept);
+    private abortAccept(market: Market, accept: AcceptMessage, reason?: string) {
+        market.myAccepts.remove(accept.hash);
         this.userService.showError(reason);
     }
 
-    private finishAccept(market, accept) {
-        market.finished.add(accept);
-        market.myAccepts.remove(accept);
+    //TODO: wrap messages in client side object to prevent recieving fake data
+    //TODO: check for txId on offer to determine finished state
+    private finishAccept(market: Market, accept: AcceptMessage) {
+        market.myAccepts.remove(accept.hash);
     }
-    private abortOffer(market, offer, reason?: string) {
-        market.aborted.add(offer);
-        market.myOffers.remove(offer);
+
+    private abortOffer(market: Market, offer: OfferMessage, reason?: string) {
+        market.myOffers.remove(offer.hash);
         this.userService.showError(reason);
     }
 
-    private finishOffer(market, offer) {
-        market.finished.add(offer);
-        market.myOffers.remove(offer);
+    //TODO: check for txId on accept to determine finished state
+    private finishOffer(market: Market, offer: OfferMessage) {
+        market.myOffers.remove(offer.hash);
     }
 
     private proccessAcceptTime(market, accept, offer, listing, theirCoin, fromInitiator: boolean) {
@@ -461,7 +461,7 @@ export class WebsocketService {
                     if(listing.act == 'ask')
                         amount = amount.times(listing.price);
 
-                    if(amount != value) {
+                    if(!amount.eq(value)) {
                         that.abortAccept(market, accept, 'swap participated with wrong amount, got ' + value + ' was expeting ' + amount);
                         return;
                     } else {
@@ -506,7 +506,7 @@ export class WebsocketService {
                     if(listing.act == 'bid')
                         amount = amount.times(listing.price);
 
-                    if(amount != value) {
+                    if(!amount.eq(value)) {
                         that.abortAccept(market, accept, 'swap initiated with wrong amount, got ' + value + ' was expeting ' + amount);
                         return;
                     } else {
