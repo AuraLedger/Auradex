@@ -278,6 +278,45 @@ export class EtherNode implements INode {
         });
     }
 
+    refundSwap(address: string, hashedSecret: string, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
+            from: address,
+            gasPrice: Web3.utils.toWei(this.gasGwei.toString(10), 'gwei')
+        });
+
+        var _hashedSecret = this._hexString(hashedSecret);
+        var refundMethod = contract.methods.refund(hashedSecret);
+
+        var amount = 0;
+        var that = this;
+        refundMethod.estimateGas({from: address, gas: 300000}, function(err, gas) {
+            if(err)
+                fail(err);
+            else {
+                that.web3.eth.accounts.signTransaction( {
+                    from: address,
+                    to: that.contractAddress,
+                    value: Web3.utils.toBN(0),
+                    gas: (new BigNumber(gas.toString())).times('1.2').toFixed(0),
+                    gasPrice: Web3.utils.toWei(that.gasGwei.toString(10), 'gwei'),
+                    chainId: that.chainId, 
+                    data: refundMethod.encodeABI()
+                }, privateKey, function (err, signedTx) {
+                    if(err)
+                        fail(err);
+                    else {
+                        that.web3.eth.sendSignedTransaction(signedTx.rawTransaction, function(err, txId) {
+                            if(err)
+                                fail(err);
+                            else
+                                success(txId);
+                        });
+                    }
+                });
+            }
+        });
+    }
+
     private increaseHexByOne(hex) {
         let x = Web3.utils.toBN(hex);
         let sum = x.add(Web3.utils.toBN(1));

@@ -18,6 +18,7 @@ export interface INode {
     initSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
     acceptSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
     redeemSwap(address: string, hashedSecret: string, secret: string, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void;
+    refundSwap(address: string, hashedSecret: string, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void;
 
     //swap checks
     getInitTimestamp(hashedSecret, success: (initTimestamp: number) => void, fail: (err: any) => void): void;

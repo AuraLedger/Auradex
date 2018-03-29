@@ -470,7 +470,7 @@ export class WebsocketService {
                             theirCoin.node.redeemSwap(listing.redeemAddress, accept.hashedSecret, that.storage.get(accept.hashedSecret), key, (txId: string): void => {
                                 offer.txId = txId;
                                 market.offers.add(offer, true);
-                                //TODO: don't assume complete until we have check for reciept && confirm time
+                                //TODO: don't assume complete until we have checked for reciept && confirm time
                                 that.finishAccept(market, accept);
                                 that.userService.showSuccess('Swap complete tx: ' + txId);
                             }, (err) => {
@@ -535,20 +535,41 @@ export class WebsocketService {
 
     private redeemOffer(offer: OfferMessage, market: Market, theirCoin: Coin, accept: AcceptMessage, myCoin: Coin) {
         var that = this;
+        //TODO: check for emptied first
         myCoin.node.getSecret(accept.hashedSecret, (secret: string) => {
             if(secret && secret.length == 64) {
-            //participation appears valid redeem
-            that.userService.getTradePrivateKey(theirCoin.name, function(key) {
-                theirCoin.node.redeemSwap(offer.redeemAddress, accept.hashedSecret, secret, key, (txId: string): void => {
-                    accept.txId = txId;
-                    market.accepts.add(accept, true);
-                    //TODO: don't assume complete until we have check for reciept && confirm time
-                    that.finishOffer(market, offer);
-                    that.userService.showSuccess('Swap complete tx: ' + txId);
-                }, (err) => {
+                //participation appears valid redeem
+                that.userService.getTradePrivateKey(theirCoin.name, function(key) {
+                    theirCoin.node.redeemSwap(offer.redeemAddress, accept.hashedSecret, secret, key, (txId: string): void => {
+                        accept.txId = txId;
+                        market.accepts.add(accept, true);
+                        //TODO: don't assume complete until we have check for reciept && confirm time
+                        that.finishOffer(market, offer);
+                        that.userService.showSuccess('Swap complete tx: ' + txId);
+                    }, (err) => {
+                        that.userService.handleError(err);
+                    }); 
+                });
+            } else {
+                myCoin.node.getInitTimestamp(accept.hashedSecret, (initTimestamp: number) => {
+                    myCoin.node.getRefundTime(accept.hashedSecret, (refundTime: number) => {
+                        if (initTimestamp + refundTime < DexUtils.UTCTimestamp()) { //times up, get refund
+                            that.userService.getTradePrivateKey(myCoin.name, function(key) {
+                                myCoin.node.refundSwap(offer.address, accept.hashedSecret, key, (txId: string): void => {
+                                    //TODO: don't assume complete until we have check for reciept && confirm time
+                                    that.finishOffer(market, offer);
+                                    that.userService.showSuccess('Swap refunded tx: ' + txId);
+                                }, (err) => {
+                                    that.userService.handleError(err);
+                                }); 
+                            });
+                        }             
+                    }, (err: any) => {
+                        that.userService.handleError(err);
+                    });
+                }, (err: any) => {
                     that.userService.handleError(err);
-                }); 
-            });
+                });
             }
         }, (err) => {
             that.userService.handleError(err);
@@ -607,15 +628,13 @@ export class WebsocketService {
                     var theirCoin = market.getListingCoin(listing);
 
                     if(offer.txId){ //we've participated, wait for secret to get our funds, or refund
-                        that.redeemOffer(offer, market, theirCoin, accept);
+                        that.redeemOffer(offer, market, theirCoin, accept, myCoin);
                         return;
                     }
-
 
                     myCoin.node.getState(accept.hashedSecret, (state: number) => {
                         switch(state) {
                             case 0: //we haven't participated, verify their initiation
-
                                 theirCoin.node.getState(accept.hashedSecret, (state: number) => {
                                     switch(state) {
                                         case 0: //they haven't initiated, keep waiting
@@ -625,32 +644,30 @@ export class WebsocketService {
                                             break;
                                         case 1:
                                             that.proccessAcceptTime(market, accept, offer, listing, theirCoin, false);
-                                break;
-                            case 2:
-                                that.abortAccept(market, accept, 'swap was participated, was expecting initiated, hashedSecret ' + accept.hashedSecret);
-                                break;
-                            default:
-                                that.abortAccept(market, accept, 'invalid swap state ' + state + ', hashedSecret ' + accept.hashedSecret);
-                                console.log('invalid swap state ' + state);
-                                console.log(accept);
-                                console.log(offer);
-                                console.log(listing);
-                                break;
-                        }
-                    }, (err: any) => {
-                        that.userService.handleError(err);
-                    });
-
-
+                                            break;
+                                        case 2:
+                                            that.abortAccept(market, accept, 'swap was participated, was expecting initiated, hashedSecret ' + accept.hashedSecret);
+                                            break;
+                                        default:
+                                            that.abortAccept(market, accept, 'invalid swap state ' + state + ', hashedSecret ' + accept.hashedSecret);
+                                            console.log('invalid swap state ' + state);
+                                            console.log(accept);
+                                            console.log(offer);
+                                            console.log(listing);
+                                            break;
+                                    }
+                                }, (err: any) => {
+                                    that.userService.handleError(err);
+                                });
                                 break;
                             case 1:
-                            that.abortAccept(market, accept, 'swap was initiated, was expecting participated, hashedSecret ' + accept.hashedSecret);
-                            //TODO: wait 48 hours to get refund
+                                that.abortAccept(market, accept, 'swap was initiated, was expecting participated, hashedSecret ' + accept.hashedSecret);
+                                //TODO: wait 48 hours to get refund
                                 break;
                             case 2:
                                 //TODO: why wasn't txId saved on offer?
-                    //we've participated, wait for secret to get our funds, or refund
-                                that.redeemOffer(offer);
+                                //we've participated, wait for secret to get our funds, or refund
+                                that.redeemOffer(offer, market, theirCoin, accept, myCoin);
                                 break;
                             default:
                                 that.abortAccept(market, accept, 'invalid swap state ' + state + ', hashedSecret ' + accept.hashedSecret);
@@ -664,101 +681,6 @@ export class WebsocketService {
                         that.userService.handleError(err);
                     });
 
-
-                }
-            } catch(error) {
-                that.userService.handleError(error);
-            }
-
-
-
-            try { //run all in try/catch so that one error doesn't hose the rest
-
-                //see if they've accepted
-                if(market.offerAccept.hasOwnProperty(offer.hash))
-                {
-                    var accept = market.offerAccept[offer.hash];
-                    var myCoin = market.getOfferCoin(offer);
-                    //check participate
-                    myCoin.node.getSwapInfo(accept.hashedSecret, (swap: SwapInfo) => {
-                        if(swap.state == 0) {
-                            //participate
-                            if(!offer.txId) {
-                                //validate intiation
-                                var listing = market.listings.get(offer.listing);
-                                var theirCoin = market.getListingCoin(listing);
-                                //check initiate
-                                theirCoin.node.getSwapInfo(accept.hashedSecret, (swap: SwapInfo) => {
-                                    if(swap.state == 0) {
-                                        //they haven't initated, keep waiting
-                                    } else if (DexUtils.UTCTimestamp() - swap.initTimestamp < theirCoin.node.confirmTime) {
-                                        //hasn't been confirmed long enough, keep wiating
-                                    } else {
-                                        var amount = accept.amount;
-                                        if(listing.act == 'bid')
-                                            amount = amount * listing.price;
-
-                                        if(amount != swap.value) {
-                                            that.abortOffer(market, offer, 'swap initiated with wrong amount, got ' + swap.value + ' was expeting ' + amount);
-                                            //TODO: use bignumber everywhere to minimize rounding errors
-                                        } else if (swap.participant != offer.redeemAddress) {
-                                            that.abortOffer(market, offer, 'swap was sent to wrong address, got ' + swap.participant + ' instead of ' + offer.redeemAddress);
-                                        } else if (swap.emptied) {
-                                            that.abortOffer(market, offer, 'swap has already been completed for hashedSecret ' + accept.hashedSecret);
-                                        } else if (swap.state == 2)
-                                        {
-                                            that.abortOffer(market, offer, 'swap was participated, was expecting initiated, hashedSecret ' + accept.hashedSecret);
-                                        } else if (swap.state != 1) {
-
-                                            that.abortOffer(market, offer, 'invalide swap state ' + swap.state + ', hashedSecret ' + accept.hashedSecret);
-                                        } else if (swap.initTimestamp + swap.refundTime < DexUtils.UTCTimestamp() + 60 * 60 * 30) {
-                                            //TODO: make time spans dynamic, maybe base on user settings
-                                            //there is less than 30hrs left on their initiation, don't participate, abort
-                                            that.abortOffer(market, offer, 'swap has less than 30 hours left: hashedSecret: ' + accept.hashedSecret);
-                                        } 
-                                        else {
-                                            //initiation appears valid participate
-                                            that.userService.getTradePrivateKey(myCoin.name, function(key) {
-                                                myCoin.node.acceptSwap(accept, offer, listing, key, (txId: string) => {
-                                                    offer.txId = txId;
-                                                    market.offers.add(offer, true); // save
-                                                }, (error) => {
-                                                    that.userService.handleError(error);
-                                                });
-                                            });
-                                        }
-                                    }
-                                }, (err) => {
-                                    that.userService.handleError(err);
-                                });
-                            } else {
-                                //we have a participate txId, wait for it to be mined
-                            }
-                        } else { 
-                            if (swap.state == 1) {
-                                that.userService.handleError('Was expecting participated state, got initiated: hashedSecret ' + accept.hashedSecret);
-                            } else if (swap.state != 2) {
-                                that.userService.handleError('invalid swap state ' + swap.state + ' : hashedSecret ' + accept.hashedSecret);
-                            }
-
-                            //if there is a valid secret, try to redeem with it
-                            if(swap.secret && !swap.emptied)
-                            {
-                                that.userService.getTradePrivateKey(myCoin.name, function(key) {
-                                    theirCoin.node.redeemSwap(offer.redeemAddress, accept.hashedSecret, swap.secret, key, (txId: string) => {
-                                        that.finishOffer(market, offer);
-                                        that.userService.showSuccess('Swap complete tx: ' + txId);
-                                    }, (error) => {
-                                        that.userService.handleError(error); 
-                                    });
-                                });
-                            } else if (swap.emptied) {
-                                that.abortOffer(market, offer, 'swap with hashedSecret ' + accept.hashedSecret + ' has already been emptied');
-                            }
-                        }
-                    }, (err) => {
-                        that.userService.handleError(err);
-                    });
                 } else { //no accept, remove from myOffers after 5 minutes, TODO: put back in on acceptance
                     var expire = offer.timestamp + (60 * 5); //5 minutes
                     if(DexUtils.UTCTimestamp() > expire)
