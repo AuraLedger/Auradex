@@ -5,11 +5,11 @@ import { WalletComponent } from './wallet/wallet.component';
 import { ManageAccountComponent } from './manage-account/manage-account.component';
 
 const routes: Routes = [
-  { path: '', redirectTo: 'trade/ARA-ETH', pathMatch: 'full' }, 
+  { path: '', redirectTo: 'trade/ROP-RNK', pathMatch: 'full' }, 
   { path: 'trade/:id', component: TradeComponent }, 
   { path: 'wallet', component: WalletComponent },
   { path: 'manage', component: ManageAccountComponent },
-  { path: '**', redirectTo: 'trade/ARA-ETH', pathMatch: 'full' },
+  { path: '**', redirectTo: 'trade/ROP-RNK', pathMatch: 'full' },
 ];
 
 @NgModule({

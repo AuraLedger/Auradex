@@ -336,21 +336,21 @@ export class EtherNode implements INode {
 
     getInitTimestamp(hashedSecret, success: (initTimestamp: number) => void, fail: (err: any) => void): void {
         var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
-        contract.methods.getInitTimestamp(this._hexString(hashedSecret)).call(function(err: any, result: number) {
+        contract.methods.getInitTimestamp(this._hexString(hashedSecret)).call(function(err: any, result: string) {
             if(err)
                 fail(err)
             else
-                success(result);
+                success(Number(result));
         });
     }
 
     getRefundTime(hashedSecret, success: (refundTime: number) => void, fail: (err: any) => void): void {
         var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
-        contract.methods.getRefundTime(this._hexString(hashedSecret)).call(function(err: any, result: number) {
+        contract.methods.getRefundTime(this._hexString(hashedSecret)).call(function(err: any, result: string) {
             if(err)
                 fail(err)
             else
-                success(result);
+                success(Number(result));
         });
     }
 
@@ -406,11 +406,11 @@ export class EtherNode implements INode {
 
     getState(hashedSecret, success: (state: number) => void, fail: (err: any) => void): void {
         var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
-        contract.methods.getState(this._hexString(hashedSecret)).call(function(err: any, result: number) {
+        contract.methods.getState(this._hexString(hashedSecret)).call(function(err: any, result: string) {
             if(err)
                 fail(err)
             else
-                success(result);
+                success(Number(result));
         });
     }
 
