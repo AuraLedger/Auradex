@@ -9,6 +9,14 @@ interface SwapTx {
     blockNumber: number;
 };
 
+interface Trade {
+    listing: ListingMessage;
+    offer: OfferMessage;
+    accept: AcceptMessage;
+    mine: boolean; //listing and accept are mine
+    hash: string; //usually the accept hash
+};
+
 export class Market {
 
     webSocketServerURL: string;
@@ -65,6 +73,8 @@ export class Market {
     myAccSortProperty: string = 'timestamp';
     myAccSortDir: boolean = false;
 
+    tradeHandle: any;
+
     constructor(
         readonly config: MarketConfig, 
         public coin: Coin, 
@@ -88,6 +98,7 @@ export class Market {
                 this.ask.insert(listing);
                 this.calcSum(this.ask.array);
             }
+            console.log(listing);
             return true;
         }
         return false;       
@@ -96,6 +107,7 @@ export class Market {
     addOffer(offer: OfferMessage): boolean {
         if(this.offers.add(offer)) {
             this.listingOffers.add(offer.listing, offer);
+            console.log(offer);
             return true;
         }
         return false;
@@ -116,6 +128,8 @@ export class Market {
     addMyAccept(accept: AcceptMessage): boolean {
         if(!this.offers.has(accept.offer))
             throw 'Cannot find offer for my accept';
+        if(!this.listings.has(this.offers.get(accept.offer).listing))
+            throw 'Cannot find listing for accept';
 
         if(this.addAccept(accept)) {
             this.myAccepts.add(accept);
@@ -131,10 +145,10 @@ export class Market {
 
         if(remaining < listing.min) {
             if(listing.act == 'bid') {
-                DexUtils.removeFromBook(this.bid, listing);
+                DexUtils.removeFromBook(this.bid, listing.hash);
             }
             if(listing.act == 'ask') {
-                DexUtils.removeFromBook(this.ask, listing)
+                DexUtils.removeFromBook(this.ask, listing.hash)
             }
             this.myListings.remove(listing.hash);
         }
@@ -275,10 +289,10 @@ export class Market {
         //TODO: don't cancel if it's been accepted already
         var listing = this.listings.get(message.listing);
         if(listing.act == 'bid') {
-            DexUtils.removeFromBook(this.bid, message); 
+            DexUtils.removeFromBook(this.bid, message.listing); 
         }
         if(listing.act == 'ask') {
-            DexUtils.removeFromBook(this.ask, message);
+            DexUtils.removeFromBook(this.ask, message.listing);
         }
         
         this.myListings.remove(message.listing);
@@ -303,7 +317,7 @@ export class Market {
         var accepted = new BigNumber(accepts.reduce((sum: BigNumber, accept: AcceptMessage) => {
             sum = sum.plus(accept.amount);
             return sum;
-        }, 0) || 0);
+        }, new BigNumber(0)) || new BigNumber(0));
         return listing.amount.minus(accepted);
     }
 
@@ -312,9 +326,10 @@ export class Market {
             this.offerAccept[accept.offer] = accept;
             var offer = this.offers.get(accept.offer);
             this.listingAccepts.add(offer.listing, accept);
+            console.log(accept);
             return true;
         }
-            return false;
+        return false;
     }
 
     calcSum(entries: any[]): void {

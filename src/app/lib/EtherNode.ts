@@ -88,7 +88,7 @@ export class EtherNode implements INode {
                     var txConfig = {
                         nonce: Web3.utils.toHex(nonce),
                         gasPrice: Web3.utils.toHex(Web3.utils.toWei(options.gasPrice.toString(10) , 'gwei')),
-                        gasLimit: Web3.utils.toHex(options.gasLimit || 20000),
+                        gasLimit: Web3.utils.toHex(options.gasLimit || 21000),
                         from: from,
                         to: to,
                         value: Web3.utils.toHex(Web3.utils.toWei(amount.toString(10), 'ether')),
@@ -165,7 +165,7 @@ export class EtherNode implements INode {
                     from: listing.address,
                     to: that.contractAddress,
                     value: Web3.utils.toWei(amount.toString(10), 'ether'),
-                    gas: gas,
+                    gas: (new BigNumber(gas.toString())).times('1.2').toFixed(0),
                     gasPrice: Web3.utils.toWei(that.gasGwei.toString(10), 'gwei'),
                     chainId: that.chainId, 
                     data: initiateMethod.encodeABI()
@@ -214,7 +214,7 @@ export class EtherNode implements INode {
                     from: offer.address,
                     to: that.contractAddress,
                     value: Web3.utils.toWei(amount.toString(10), 'ether'),
-                    gas: gas,
+                    gas: (new BigNumber(gas.toString())).times('1.2').toFixed(0),
                     gasPrice: Web3.utils.toWei(that.gasGwei.toString(10), 'gwei'),
                     chainId: that.chainId, 
                     data: participateMethod.encodeABI()
@@ -258,7 +258,7 @@ export class EtherNode implements INode {
                     from: address,
                     to: that.contractAddress,
                     value: Web3.utils.toBN(0),
-                    gas: gas,
+                    gas: (new BigNumber(gas.toString())).times('1.2').toFixed(0),
                     gasPrice: Web3.utils.toWei(that.gasGwei.toString(10), 'gwei'),
                     chainId: that.chainId, 
                     data: redeemMethod.encodeABI()
@@ -280,7 +280,7 @@ export class EtherNode implements INode {
 
     private increaseHexByOne(hex) {
         let x = Web3.utils.toBN(hex);
-        let sum = x.add(1);
+        let sum = x.add(Web3.utils.toBN(1));
         let result = '0x' + sum.toString(16);
         return result;
     }
@@ -295,9 +295,90 @@ export class EtherNode implements INode {
         return hex;
     }
 
+    getInitTimestamp(hashedSecret, success: (initTimestamp: number) => void, fail: (err: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
+        contract.methods.getInitTimestamp(this._hexString(hashedSecret)).call(function(err: any, result: number) {
+            if(err)
+                fail(err)
+            else
+                success(result);
+        });
+    }
+
+    getRefundTime(hashedSecret, success: (refundTime: number) => void, fail: (err: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
+        contract.methods.getRefundTime(this._hexString(hashedSecret)).call(function(err: any, result: number) {
+            if(err)
+                fail(err)
+            else
+                success(result);
+        });
+    }
+
+    getSecret(hashedSecret, success: (secret: string) => void, fail: (err: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
+        contract.methods.getSecret(this._hexString(hashedSecret)).call(function(err: any, result: string) {
+            if(err)
+                fail(err)
+            else
+                success(result.startsWith('0x') ? result.substr(2) : result);
+        });
+    }
+
+    getInitiator(hashedSecret, success: (initiator: string) => void, fail: (err: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
+        contract.methods.getInitiator(this._hexString(hashedSecret)).call(function(err: any, result: string) {
+            if(err)
+                fail(err)
+            else
+                success(result);
+        });
+    }
+
+    getParticipant(hashedSecret, success: (participant: string) => void, fail: (err: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
+        contract.methods.getParticipant(this._hexString(hashedSecret)).call(function(err: any, result: string) {
+            if(err)
+                fail(err)
+            else
+                success(result);
+        });
+    }
+
+    getValue(hashedSecret, success: (value: BigNumber) => void, fail: (err: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
+        contract.methods.getValue(this._hexString(hashedSecret)).call(function(err: any, result: any) {
+            if(err)
+                fail(err)
+            else
+                success(new BigNumber(Web3.utils.fromWei(result, 'ether')));
+        });
+    }
+
+    getEmptied(hashedSecret, success: (emptied: boolean) => void, fail: (err: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
+        contract.methods.getEmptied(this._hexString(hashedSecret)).call(function(err: any, result: boolean) {
+            if(err)
+                fail(err)
+            else
+                success(result);
+        });
+    }
+
+    getState(hashedSecret, success: (state: number) => void, fail: (err: any) => void): void {
+        var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress);
+        contract.methods.getState(this._hexString(hashedSecret)).call(function(err: any, result: number) {
+            if(err)
+                fail(err)
+            else
+                success(result);
+        });
+    }
+
+
     getSwapInfo(hashedSecret, success: (info: SwapInfo) => void, fail: (err: any) => void): void {
-        var index = Web3.utils.padleft('0', 64);
-        var key = Web3.utils.padleft(hashedSecret, 64);
+        var index = Web3.utils.padLeft('0', 64);
+        var key = Web3.utils.padLeft(hashedSecret, 64);
         key =  this.web3.utils.sha3(key + index, {"encoding":"hex"});
         var that = this;
         this.web3.eth.getStorageAt(this.contractAddress, key, function(err, initTimestamp) {

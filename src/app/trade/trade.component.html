@@ -176,18 +176,16 @@
             <div fxFlex="18">Price {{market.base.ticker}}</div>
             <div fxFlex="18">Size {{market.base.ticker}}</div>
             <div fxFlex="26" style="text-align: center">Time</div>
-            <div fxFlex="10">&nbsp;</div>
           </div>
 
           <div *ngIf="market.myAccepts.array.length == 0">No Orders.</div>
 
           <div *ngFor="let accept of market.myAccepts.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
-            <div fxFlex="10" style="text-align: center">{{market.myListings[market.offers[accept.offer].listing].act == 'bid' ? 'Buy' : 'Sell'}}</div>
+            <div fxFlex="10" style="text-align: center">{{market.listings.map[market.offers.map[accept.offer].listing].act == 'bid' ? 'Buy' : 'Sell'}}</div>
             <div fxFlex="18">{{accept.amount | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{market.myListings[market.offers[accept.offer].listing].price | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{accept.amount.times(market.myListings[market.offers[accept.offer].listing].price) | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{market.listings.map[market.offers.map[accept.offer].listing].price | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{accept.amount.times(market.listings.map[market.offers.map[accept.offer].listing].price) | bigNumber: '1.8-8'}}</div>
             <div fxFlex="26" style="text-align: center">{{accept.timestamp * 1000 | date : 'short' }}</div>
-            <button mat-button color="accent" fxFlex="10" (click)="cancel(accept)">Cancel</button>
           </div>
         </div>
       </mat-expansion-panel>
@@ -210,18 +208,16 @@
             <div fxFlex="18">Price {{market.base.ticker}}</div>
             <div fxFlex="18">Size {{market.base.ticker}}</div>
             <div fxFlex="26" style="text-align: center">Time</div>
-            <div fxFlex="10">Cancel</div>
           </div>
 
-          <div *ngIf="market.offers.array.length == 0">No Orders.</div>
+          <div *ngIf="market.myOffers.array.length == 0">No Orders.</div>
 
           <div *ngFor="let offer of market.myOffers.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
-            <div fxFlex="10" style="text-align: center">{{market.listings[offer.listing].act == 'bid' ? 'Buy' : 'Sell'}}</div>
+            <div fxFlex="10" style="text-align: center">{{market.listings.map[offer.listing].act == 'bid' ? 'Buy' : 'Sell'}}</div>
             <div fxFlex="18">{{offer.amount | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{market.listings[offer.listing].price | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{offer.amount.times(market.listings[offer.listing].price) | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{market.listings.map[offer.listing].price | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{offer.amount.times(market.listings.map[offer.listing].price) | bigNumber: '1.8-8'}}</div>
             <div fxFlex="26" style="text-align: center">{{offer.timestamp * 1000 | date : 'short' }}</div>
-            <button mat-button color="accent" fxFlex="10" (click)="cancel(offer)">Cancel</button>
           </div>
         </div>
       </mat-expansion-panel>

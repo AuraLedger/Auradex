@@ -99,7 +99,7 @@ export interface AcceptMessage extends MessageBase {
     /**  trade amount of COIN, must be greater than the offers set minimum */
     amount: BigNumber; 
     
-    /**  20 byte ripemd hash of 32 byte secret */
+    /**  20 byte ripemd hash of 32 byte secret, should be a hex string without a leading 0x */
     hashedSecret: string; 
 
     /**  UTC timestamp */
@@ -114,6 +114,8 @@ export interface AcceptMessage extends MessageBase {
     /**  signature of message */
     sig?: string; 
 
+    /** NOT PART OF HASH, is not sent with original message, used to track swap progress locally */
+    finished?: boolean;
 }
 
 /** act: setFeeRates

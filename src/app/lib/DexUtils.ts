@@ -265,9 +265,9 @@ export class DexUtils {
         return Math.floor((new Date()).getTime() / 1000);
     }
 
-    static removeFromBook(book: SortedArray, obj: CancelMessage): ListingMessage | null {
+    static removeFromBook(book: SortedArray, hash: string): ListingMessage | null {
         for(var i = 0; i < book.array.length; i++) {
-            if(book.array[i].hash == obj.listing) {
+            if(book.array[i].hash == hash) {
                 return book.array.splice(i, 1)[0];
             }
         }
