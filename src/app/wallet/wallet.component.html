@@ -38,7 +38,7 @@
         </span>
         <span fxFlex="20" fxLayout fxLayoutAlign="start center">
           <mat-spinner *ngIf="!balances[coin.name] && balances[coin.name] != 0" [diameter]=30 > </mat-spinner>
-          <span *ngIf="balances[coin.name] || balances[coin.name] == 0">{{balances[coin.name] | number: '1.8-8'}} {{coin.ticker}}</span>
+          <span *ngIf="balances[coin.name] || balances[coin.name] == 0">{{balances[coin.name] | bigNumber: '1.8-8'}} {{coin.ticker}}</span>
         </span>
         <button mat-raised-button (click)="send(coin)">Send</button> 
       </mat-list-item>

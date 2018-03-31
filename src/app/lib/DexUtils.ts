@@ -1,8 +1,10 @@
 import { ListingMessage, CancelMessage, OfferMessage, AcceptMessage} from './AuradexApi';
 import { INode } from './INode';
 import { BigNumber } from 'bignumber.js';
+import { Buffer } from 'buffer';
 import * as SortedArray from 'sorted-array';
 import * as CryptoJS from 'crypto-js';
+import * as RIPEMD160 from 'ripemd160';
 
 declare var require: any
 const Web3 = require('web3');
@@ -17,6 +19,9 @@ export class DexUtils {
                 DexUtils.verifyListingFull(listing, node, bal, success, fail);
         });
     }
+
+    static BAD_SECRET = '0000000000000000000000000000000000000000000000000000000000000000';
+    static BAD_SECRET_HASHED = new RIPEMD160().update(new Buffer(DexUtils.BAD_SECRET, "hex")).digest('hex'); 
 
     static verifyListingFull(entry: ListingMessage, node: INode, bal: BigNumber, 
         success: () => void, fail: (err: any) => void) {
@@ -117,6 +122,11 @@ export class DexUtils {
 
     static verifyAcceptFull(accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, node: INode, bal: BigNumber, 
         success: () => void, fail: (err: any) => void) {
+
+        if(accept.hashedSecret == DexUtils.BAD_SECRET_HASHED) {
+            fail('bad hashed secret')
+            return;
+        }
 
         if(accept.amount.isGreaterThan(offer.amount)) {
             fail('accept amount is greater than offer amount');

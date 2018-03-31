@@ -147,7 +147,7 @@ export class EtherNode implements INode {
         var refundTime = DexUtils.UTCTimestamp() + 60 * 60 * 48; //add 48 hours
         var hashedSecret = this._hexString(accept.hashedSecret);
 
-        var amount: BigNumber = new BigNumber(0);
+        var amount: BigNumber;
         if(listing.act == 'bid') {
             amount = accept.amount.times(listing.price);
         } else {
@@ -193,12 +193,12 @@ export class EtherNode implements INode {
         });
 
         //TODO: make sure there is atleast 30 hours remaining on the initiate swap
-        var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 24; //add 24 hours
+        var refundTime = DexUtils.UTCTimestamp() + 60 * 60 * 24; //add 24 hours
         var hashedSecret = this._hexString(accept.hashedSecret);
 
         var participateMethod = contract.methods.participate(refundTime, hashedSecret, listing.redeemAddress);
 
-        var amount = new BigNumber(0);
+        var amount: BigNumber;
         if(listing.act == 'ask') {
             amount = accept.amount.times(listing.price);
         } else {
@@ -246,7 +246,7 @@ export class EtherNode implements INode {
         var _hashedSecret = this._hexString(hashedSecret);
         var _secret = this._hexString(secret);
 
-        var redeemMethod = contract.methods.redeem(secret, hashedSecret);
+        var redeemMethod = contract.methods.redeem(_secret, _hashedSecret);
 
         var amount = 0;
         var that = this;
@@ -285,7 +285,7 @@ export class EtherNode implements INode {
         });
 
         var _hashedSecret = this._hexString(hashedSecret);
-        var refundMethod = contract.methods.refund(hashedSecret);
+        var refundMethod = contract.methods.refund(_hashedSecret);
 
         var amount = 0;
         var that = this;
@@ -411,60 +411,6 @@ export class EtherNode implements INode {
                 fail(err)
             else
                 success(Number(result));
-        });
-    }
-
-
-    getSwapInfo(hashedSecret, success: (info: SwapInfo) => void, fail: (err: any) => void): void {
-        var index = Web3.utils.padLeft('0', 64);
-        var key = Web3.utils.padLeft(hashedSecret, 64);
-        key =  this.web3.utils.sha3(key + index, {"encoding":"hex"});
-        var that = this;
-        this.web3.eth.getStorageAt(this.contractAddress, key, function(err, initTimestamp) {
-            if(err) { fail(err); return; }
-            key = that.increaseHexByOne(key);
-            that.web3.eth.getStorageAt(that.contractAddress, key, function(err, refundTime) {
-                if(err) { fail(err); return; }
-                key = that.increaseHexByOne(key);
-                that.web3.eth.getStorageAt(that.contractAddress, key, function(err, _hashedSecret) {
-                    if(err) { fail(err); return; }
-                    key = that.increaseHexByOne(key);
-                    that.web3.eth.getStorageAt(that.contractAddress, key, function(err, secret) {
-                        if(err) { fail(err); return; }
-                        key = that.increaseHexByOne(key);
-                        that.web3.eth.getStorageAt(that.contractAddress, key, function(err, initiator) {
-                            if(err) { fail(err); return; }
-                            key = that.increaseHexByOne(key);
-                            that.web3.eth.getStorageAt(that.contractAddress, key, function(err, participant) {
-                                if(err) { fail(err); return; }
-                                key = that.increaseHexByOne(key);
-                                that.web3.eth.getStorageAt(that.contractAddress, key, function(err, value) {
-                                    if(err) { fail(err); return; }
-                                    key = that.increaseHexByOne(key);
-                                    that.web3.eth.getStorageAt(that.contractAddress, key, function(err, emptied) {
-                                        if(err) { fail(err); return; }
-                                        key = that.increaseHexByOne(key);
-                                        that.web3.eth.getStorageAt(that.contractAddress, key, function(err, state) {
-                                            if(err) { fail(err); return; }
-                                            success({
-                                                initTimestamp: initTimestamp,
-                                                refundTime: refundTime,
-                                                hashedSecret: _hashedSecret,
-                                                secret: secret,
-                                                initiator: initiator,
-                                                participant: participant,
-                                                value: Web3.utils.fromWei(value, 'ether'),
-                                                emptied: emptied,
-                                                state: state
-                                            });
-                                        });
-                                    });
-                                });
-                            });
-                        });
-                    });
-                });
-            });
         });
     }
 }

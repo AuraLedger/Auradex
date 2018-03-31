@@ -155,7 +155,6 @@ export class WebsocketService {
             case 'accept': mine ? market.addMyAccept(json) : that.addAccept(json, market, restore); break;
 
                 //TODO: need really good fee estimation
-            case 'setFeeRates': that.setFeeRates(json, market); break;
             case 'peers': market.peers = json.peers;
             case 'err': that.userService.handleError(json.err); break; //should only come from server
         }
@@ -316,7 +315,7 @@ export class WebsocketService {
                         that.userService.getTradePrivateKey(myCoin.name, function(key) {
                             var tmpmsg = DexUtils.getAcceptSigMessage(accept);
                             accept.hash = DexUtils.sha3(tmpmsg); // temp hash
-                            market.myAccepts.add(accept); //save now incase there are issues when broadcasting tx
+                            market.accepts.add(accept); //save now incase there are issues when broadcasting tx
                             myCoin.node.initSwap(listing, offer, accept, key, (txId) => {
                                 //TODO: need a way for users to manually input a hashedSecret or choose from list to continue the swap in case the initial transaction is mined but this methed fails to return
                                 accept.txId = txId;
@@ -511,7 +510,7 @@ export class WebsocketService {
                         return;
                     } else {
                         //initiation appears valid participate 
-                        var myCoin = market.getListingCoin(listing);
+                        var myCoin = market.getOfferCoin(offer);
                         that.userService.getTradePrivateKey(myCoin.name, function(key) {
                             myCoin.node.acceptSwap(listing, offer, accept, key, (txId: string): void => {
                                 offer.txId = txId;
@@ -533,11 +532,12 @@ export class WebsocketService {
         });
     }
 
+    //TODO: check message timestamps first before refund checks
     private redeemOffer(offer: OfferMessage, market: Market, theirCoin: Coin, accept: AcceptMessage, myCoin: Coin) {
         var that = this;
         //TODO: check for emptied first
         myCoin.node.getSecret(accept.hashedSecret, (secret: string) => {
-            if(secret && secret.length == 64) {
+            if(secret && secret.length == 64 && secret != DexUtils.BAD_SECRET) {
                 //participation appears valid redeem
                 that.userService.getTradePrivateKey(theirCoin.name, function(key) {
                     theirCoin.node.redeemSwap(offer.redeemAddress, accept.hashedSecret, secret, key, (txId: string): void => {
@@ -584,7 +584,7 @@ export class WebsocketService {
         market.myAccepts.array.forEach(accept => {
             try { //run all in try/catch so that one error doesn't hose the rest
                 var offer = market.offers.get(accept.offer);
-                var listing = market.myListings.get(offer.listing);
+                var listing = market.listings.get(offer.listing);
                 var theirCoin = market.getOfferCoin(offer);
 
                 //TODO: make sure my accept went through, check tx reciept
