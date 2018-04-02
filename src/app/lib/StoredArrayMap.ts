@@ -32,4 +32,10 @@ export class StoredArrayMap extends ArrayMap {
         if(item)
             localStorage.removeItem(this.marketId + this.keyFunc(item));
     }
+
+    removeMap(key: string): any {
+        var item = super.removeMap(key);
+        if(item)
+            localStorage.removeItem(this.marketId + this.keyFunc(item));
+    }
 }

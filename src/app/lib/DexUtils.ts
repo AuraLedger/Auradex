@@ -11,19 +11,19 @@ const Web3 = require('web3');
 
 
 export class DexUtils {
-    static verifyListing(listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
+    static verifyListing(listing: ListingMessage, node: INode, checkFee: boolean, success: () => void, fail: (err: any) => void) {
         node.getBalance(listing.address, function(err, bal: BigNumber) {
             if(err)
                 fail(err);
             else
-                DexUtils.verifyListingFull(listing, node, bal, success, fail);
+                DexUtils.verifyListingFull(listing, node, bal, checkFee, success, fail);
         });
     }
 
     static BAD_SECRET = '0000000000000000000000000000000000000000000000000000000000000000';
     static BAD_SECRET_HASHED = new RIPEMD160().update(new Buffer(DexUtils.BAD_SECRET, "hex")).digest('hex'); 
 
-    static verifyListingFull(entry: ListingMessage, node: INode, bal: BigNumber, 
+    static verifyListingFull(entry: ListingMessage, node: INode, bal: BigNumber, checkFee: boolean, 
         success: () => void, fail: (err: any) => void) {
 
         //verify min
@@ -35,40 +35,47 @@ export class DexUtils {
         //verify simple amounts
         if(entry.amount.isLessThanOrEqualTo(0)) {
             fail('amount must be greater than 0');
+            return;
         }
 
         if(entry.price.isLessThanOrEqualTo(0)) {
             fail('price must be greater than 0');
+            return;
+        }
+
+        var checkAmount: BigNumber;
+        if(entry.act == 'bid') {
+            checkAmount = entry.amount.times(entry.price);
+        } else if (entry.act == 'ask') {
+            checkAmount = entry.amount;
+        } else {
+            fail('unknown entry type ' + entry.act);
+            return;
+        }
+
+        if(checkFee) {
+            checkAmount = checkAmount.plus(node.getInitFee());
+        }
+
+        if(checkAmount.isGreaterThan(bal)) {
+            fail('lister is short on funds');
+            return;
         }
 
         //verify sig
-        DexUtils.verifyListingSig(entry, node, entry.address, () => {
-            //verify bidder/asker has enough funds
-            if(entry.act == 'bid') {
-                if (entry.amount.times(entry.price).plus(node.getInitFee()).isGreaterThan(bal))
-                    fail('bidder is short on available funds')
-                else
-                    success();
-            } else if (entry.act == 'ask') {
-                if (entry.amount.plus(node.getInitFee()).isGreaterThan(bal))
-                    fail('asker is short on available funds')
-                else
-                    success();
-            } else
-                fail('unknown entry type ' + entry.act);
-        }, fail);
+        DexUtils.verifyListingSig(entry, node, entry.address, success, fail);
     }
 
-    static verifyOffer(offer: OfferMessage, listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
+    static verifyOffer(offer: OfferMessage, listing: ListingMessage, checkFee: boolean, node: INode, success: () => void, fail: (err: any) => void) {
         node.getBalance(offer.address, function(err, bal: BigNumber) {
             if(err)
                 fail(err);
             else
-                DexUtils.verifyOfferFull(offer, listing, node, bal, success, fail);
+                DexUtils.verifyOfferFull(offer, listing, node, bal, checkFee, success, fail);
         });
     }
 
-    static verifyOfferFull(offer: OfferMessage, listing: ListingMessage, node: INode, bal: BigNumber, 
+    static verifyOfferFull(offer: OfferMessage, listing: ListingMessage, node: INode, bal: BigNumber, checkFee: boolean, 
         success: () => void, fail: (err: any) => void) {
 
         //verify min
@@ -93,78 +100,28 @@ export class DexUtils {
             return;
         }
 
-        //verify sig
-        DexUtils.verifyOfferSig(offer, node, offer.address, () => {
-            //verify bidder/asker has enough funds
-            if(listing.act == 'ask') {
-                if ((offer.amount.times(listing.price)).plus(node.getInitFee()).isGreaterThan(bal))
-                    fail('bidder is short on available funds')
-                else
-                    success();
-            } else if (listing.act == 'bid') {
-                if (offer.amount.plus(node.getInitFee()).isGreaterThan(bal))
-                    fail('asker is short on available funds')
-                else
-                    success();
-            } else
-                fail('unknown listing type ' + listing.act);
-        }, fail);
-    }
-
-    static verifyAccept(accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, node: INode, success: () => void, fail: (err: any) => void) {
-        node.getBalance(listing.address, function(err, bal: BigNumber) {
-            if(err)
-                fail(err);
-            else
-                DexUtils.verifyAcceptFull(accept, offer, listing, node, bal, success, fail);
-        });
-    }
-
-    static verifyAcceptFull(accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, node: INode, bal: BigNumber, 
-        success: () => void, fail: (err: any) => void) {
-
-        if(accept.hashedSecret == DexUtils.BAD_SECRET_HASHED) {
-            fail('bad hashed secret')
+        var checkAmount: BigNumber;
+        if(listing.act == 'ask') {
+            checkAmount = offer.amount.times(listing.price);
+        } else if (listing.act == 'bid') {
+            checkAmount = offer.amount;
+        } else {
+            fail('unknown entry type ' + listing.act);
             return;
         }
 
-        if(accept.amount.isGreaterThan(offer.amount)) {
-            fail('accept amount is greater than offer amount');
-            return;
-        }
-        if(accept.amount.isLessThan(offer.min)) {
-            fail('accept amount is below offer min');
-            return;
+        if(checkFee) {
+            checkAmount = checkAmount.plus(node.getInitFee());
         }
 
-        //verify simple amounts
-        if(offer.amount.isLessThanOrEqualTo(0)) {
-            fail('amount must be greater than 0');
-        }
-
-        if(listing.price.isLessThanOrEqualTo(0)) {
-            fail('price must be greater than 0');
+        if(checkAmount.isGreaterThan(bal)) {
+            fail('offeror is short on funds');
+            return;
         }
 
         //verify sig
-        DexUtils.verifyOfferSig(offer, node, offer.address, () => {
-            //verify bidder/asker has enough funds
-            if(listing.act == 'bid') {
-                if (accept.amount.times(listing.price).plus(node.getInitFee()).isGreaterThan(bal))
-                    fail('bidder is short on available funds')
-                else
-                    success();
-            } else if (listing.act == 'ask') {
-                if (accept.amount.plus(node.getInitFee()).isGreaterThan(bal))
-                    fail('asker is short on available funds')
-                else
-                    success();
-            } else
-                fail('unknown listing type ' + listing.act);
-        }, fail);
+        DexUtils.verifyOfferSig(offer, node, offer.address, success, fail); 
     }
-
-
 
     static sha3(message: string): string {
         return Web3.utils.sha3(message);

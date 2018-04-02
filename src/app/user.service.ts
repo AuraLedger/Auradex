@@ -19,6 +19,7 @@ export class UserService {
     accounts;
     activeAccount;
     transactions;
+    passwordOpen: boolean;
     //trades;
 
     constructor(
@@ -186,6 +187,11 @@ export class UserService {
             cb(priv);
         }
         else {
+            if(this.passwordOpen) {
+                cb(null);
+                return;
+            }
+            this.passwordOpen = true;
             let dialogRef = this.dialog.open(PasswordComponent, {
                 data: {
                     account: this.getAccount(),
@@ -196,8 +202,9 @@ export class UserService {
             });
 
             dialogRef.afterClosed().subscribe(result => {
+                this.passwordOpen = false;
                 cb(result);
-            });   
+            });
         }
     }
 

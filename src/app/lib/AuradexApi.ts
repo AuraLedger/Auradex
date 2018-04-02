@@ -33,6 +33,9 @@ export interface ListingMessage extends MessageBase {
 
     /** signature of message  */
     sig?: string; 
+    
+    /** NOT PART OF HASH, is not sent with original message, used to track remaining available locally*/
+    remaining?: BigNumber;
 }
 
 /** act: cancel 

@@ -33,6 +33,8 @@ export class Market {
     listings: StoredArrayMap;
     offers: StoredArrayMap;
     accepts: StoredArrayMap;
+    stagedAccepts: StoredArrayMap;
+    cancels: StoredArrayMap;
 
     myListings: ArrayMap = new ArrayMap('hash');
     myOffers: ArrayMap = new ArrayMap('hash');
@@ -86,6 +88,8 @@ export class Market {
         this.listings = new StoredArrayMap(this.id, 'hash');
         this.offers = new StoredArrayMap(this.id, 'hash');
         this.accepts = new StoredArrayMap(this.id, 'hash');
+        this.stagedAccepts = new StoredArrayMap(this.id, 'hash');
+        this.cancels = new StoredArrayMap(this.id, 'hash');
     }
 
     addListing(listing: ListingMessage): boolean {
@@ -98,7 +102,7 @@ export class Market {
                 this.ask.insert(listing);
                 this.calcSum(this.ask.array);
             }
-            console.log(listing);
+            //console.log(listing);
             return true;
         }
         return false;       
@@ -107,7 +111,7 @@ export class Market {
     addOffer(offer: OfferMessage): boolean {
         if(this.offers.add(offer)) {
             this.listingOffers.add(offer.listing, offer);
-            console.log(offer);
+            //console.log(offer);
             return true;
         }
         return false;
@@ -139,12 +143,13 @@ export class Market {
         return false;
     }
 
+    //TODO: reduce listing amount on books after accept has been made
     finishMyAccept(accept: AcceptMessage) {
         var listing = this.listings.get(this.offers.get(accept.offer).listing);
         var remaining = this.getListingRemaining(listing);
 
-        if(remaining < listing.min) {
-            if(listing.act == 'bid') {
+        if(remaining.isLessThan(listing.min)) { 
+            if(listing.act == 'bid') { 
                 DexUtils.removeFromBook(this.bid, listing.hash);
             }
             if(listing.act == 'ask') {
@@ -220,7 +225,7 @@ export class Market {
         this.sortMyList(this.myListings.array, this.mySortProperty, this.mySortDir);
     }
 
-    //TODO: wrap all messages in new objects with more properties for client side handling
+    //TODO: maybe? wrap all messages in new objects with more properties for client side handling // or atleast clean messsages upon receipt
     sortMyOffers() {
         this.sortMyList(this.myOffers.array, this.myOfferSortProperty, this.myOfferSortDir);
     }
@@ -286,7 +291,8 @@ export class Market {
 
     cancel(message: CancelMessage) {
         //TODO: don't remove from storage, just set cancel property when this is wrapped with a client object
-        //TODO: don't cancel if it's been accepted already
+        //TODO: don't cancel if it's been accepted already // only cancel remaining amount
+        this.cancels.add(message);
         var listing = this.listings.get(message.listing);
         if(listing.act == 'bid') {
             DexUtils.removeFromBook(this.bid, message.listing); 
@@ -296,20 +302,22 @@ export class Market {
         }
         
         this.myListings.remove(message.listing);
-        (this.listingOffers.get(listing.hash) || []).forEach(o => this.cancelOffer(o));
+        if(!this.listingAccepts.map.hasOwnProperty(message.listing))
+            (this.listingOffers.get(listing.hash) || []).forEach(o => this.cancelOffer(o));
     }
 
     cancelOffer(offer: OfferMessage) {
+        this.myOffers.remove(offer.hash);
         //TODO: set canelled status on new offer object (when implemented) but check for accept and swap status first
         //TODO: if there is an accept, do not cancel
     }
 
-    getPotentialAcceptAmount(offer) {
+    getPotentialAcceptAmount(offer): BigNumber {
         var listing = this.listings.get(offer.listing);
-        var remaining = this.getListingRemaining(listing);
-        if(remaining.isGreaterThan(listing.min) && remaining.isGreaterThan(offer.min))
-            return BigNumber.minimum(offer.amount, remaining);
-        return 0;
+        this.getListingRemaining(listing);
+        if(listing.remaining.isGreaterThanOrEqualTo(listing.min) && listing.remaining.isGreaterThanOrEqualTo(offer.min))
+            return BigNumber.minimum(offer.amount, listing.remaining);
+        return new BigNumber(0);
     }
 
     getListingRemaining (listing: ListingMessage): BigNumber {
@@ -318,7 +326,8 @@ export class Market {
             sum = sum.plus(accept.amount);
             return sum;
         }, new BigNumber(0)) || new BigNumber(0));
-        return listing.amount.minus(accepted);
+        listing.remaining = listing.amount.minus(accepted);
+        return listing.remaining;
     }
 
     addAccept(accept: AcceptMessage): boolean {
@@ -326,7 +335,7 @@ export class Market {
             this.offerAccept[accept.offer] = accept;
             var offer = this.offers.get(accept.offer);
             this.listingAccepts.add(offer.listing, accept);
-            console.log(accept);
+            //console.log(accept);
             return true;
         }
         return false;

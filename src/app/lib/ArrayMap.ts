@@ -45,9 +45,8 @@ export class ArrayMap {
     }
 
     remove(key: string, ensure?: boolean): any {
-        var item = this.get(key);
+        var item = this.removeMap(key);
         if(item) {
-            delete this.map[key];
             for(var i = this.array.length - 1; i >= 0 ; i--)
             {
                 if(this.keyFunc(this.array[i]) == key)
@@ -60,5 +59,23 @@ export class ArrayMap {
             return item;
         }
         return null;
+    }
+
+    removeMap(key: string): any {
+        var item = this.get(key);
+        if(item) {
+            delete this.map[key];
+            return item;
+        }
+        return null;
+    }
+
+    //remove list items that are no longer in map
+    getItTogether() {
+        for(var i = this.array.length-1; i >= 0; i--)
+        {
+            if(!this.map.hasOwnProperty(this.keyFunc(this.array[i])))
+                this.array.splice(i, 1);
+        }
     }
 }

@@ -268,19 +268,20 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     if(increment) 
                         doneCount++;
                     if(doneCount == offers.length) {
-                        if(entry.amount.isGreaterThan(entry.min))
+                        if(entry.amount.isGreaterThanOrEqualTo(entry.min))
                         {
                             var msg = DexUtils.getListingSigMessage(entry);
                             entry.hash = DexUtils.sha3(msg);
                             entry.sig = that.market.base.node.signMessage(msg, key);
                             ws.send(JSON.stringify(entry));
                             that.market.addMyListing(entry);
+                            that.bidAmount = 0;
                         }
                     }
                 };
                 offers.forEach((offer) => {
                     var listing = that.market.listings.get(offer.listing);
-                    DexUtils.verifyListing(listing, that.market.coin.node, () => {
+                    DexUtils.verifyListing(listing, that.market.coin.node, false, () => {
                         var msg = DexUtils.getOfferSigMessage(offer);
                         offer.hash = DexUtils.sha3(msg);
                         offer.sig = that.market.base.node.signMessage(msg, key);
@@ -351,7 +352,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     if(increment) 
                         doneCount++;
                     if(doneCount == offers.length) {
-                        if(entry.amount.isGreaterThan(entry.min))
+                        if(entry.amount.isGreaterThanOrEqualTo(entry.min))
                         {
                             var msg = DexUtils.getListingSigMessage(entry);
                             entry.hash = DexUtils.sha3(msg);
@@ -363,7 +364,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                 };
                 offers.forEach((offer) => {
                     var listing = that.market.listings.get(offer.listing);
-                    DexUtils.verifyListing(listing, that.market.base.node, () => {
+                    DexUtils.verifyListing(listing, that.market.base.node, false, () => {
                         var msg = DexUtils.getOfferSigMessage(offer);
                         offer.hash = DexUtils.sha3(msg);
                         offer.sig = that.market.coin.node.signMessage(msg, key);
@@ -430,6 +431,101 @@ export class TradeComponent implements OnInit, AfterViewInit {
     }
 
     ngAfterViewInit() {}
+    preInit() {
+
+        //if there is no account, TODO: prompt user to create one
+        var account = this.userService.getAccount();
+        var activeMarkets = {};
+        var myMarkets = {};
+        var aMarket: Market;
+        var login: boolean = false;
+        if(!account) {
+            var urlSegments = this.route.snapshot.url;
+            if(urlSegments.length < 1 || urlSegments[0].path != 'wallet')
+                this.router.navigate(['/wallet']);
+        } else {
+            //restore books, connect to markets with active trades, prompt login
+            var that = this;
+            var stgKeys = [];
+            for(var i = 0; i < localStorage.length; i++) {
+                var key = localStorage.key(i);
+                if(!key.startsWith('auradex'))
+                    stgKeys.push(localStorage.key(i));
+            }
+            var expire = DexUtils.UTCTimestamp() - 60 * 60 * 24 * 4;
+            stgKeys.forEach((k: string) => {
+                var idx = k.indexOf('0x');
+                if(idx == -1)
+                    idx = k.indexOf('staged');
+                if(idx > 0)
+                {
+                    var marketId = k.substring(0, idx);
+                    var hash = k.substring(idx);
+                    var market: Market = that.coinService.marketd[marketId];
+
+                    if(market) {
+
+                        if(!activeMarkets.hasOwnProperty(marketId)) {
+                            activeMarkets[marketId] = market;
+                        }
+
+                        var json = JSON.parse(localStorage.getItem(k));
+                        that.websocketService.setNumbers(json);
+                        var mine = false;
+
+                        if(json.address == account[market.coin.name].address || json.address == account[market.base.name].address) {
+                            mine = true;
+                        }
+
+                        if(json.act == 'cancel') {
+                            market.cancelQueue.push(json);
+                        } else if(json.act == 'offer') {
+                            market.offerQueue.push(json);
+                        } else if(json.act == 'accept') {
+                            if(json.hash.startsWith('staged'))
+                                market.stagedAccepts.add(json);
+                            else
+                                market.acceptQueue.push(json);
+                        } else if (json.act == 'bid' || json.act == 'ask') {
+                            that.websocketService.processMessage(market, json, mine, true);
+                        }
+
+                        if (mine && !myMarkets.hasOwnProperty(marketId)) {
+                            login = true;
+                            myMarkets[marketId] = market;
+                        }
+                    }
+                }
+            });
+
+            //for each market
+            for(var key in activeMarkets) {
+                if(activeMarkets.hasOwnProperty(key)) {
+                    var market: Market = activeMarkets[key];
+                    that.websocketService.reevalCancelQueue(market);
+                    that.websocketService.reevalOfferQueue(market, true);
+                    that.websocketService.reevalAcceptQueue(market, true);
+                }
+            }
+
+            if(login) {
+                setTimeout(() => { //wait for next update cycle
+                    var aMarket: Market = myMarkets[0];
+                    that.userService.getTradePrivateKey(market.coin.name, (privKey) => {
+                        if(privKey) {
+                            //for each market with object of mine, connect
+                            for(var key in myMarkets) {
+                                if(myMarkets.hasOwnProperty(key)) {
+                                    var market: Market = myMarkets[key];
+                                    that.websocketService.connect(market);
+                                }
+                            }           
+                        }
+                    }, {});
+                }, 100);
+            }
+        }
+    }
 
     initWebsockets() {
         this.websocketService.connect(this.market);
@@ -450,6 +546,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
     }
 
     ngOnInit() {
+        this.preInit();
         this.sub = this.route.params.subscribe(params => {
             var key: string;
             if(params['id']) {
@@ -460,7 +557,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                 this.initMarket();    
             }
             else
-                this.router.navigate(['/trade', 'ARA-ETH']);
+                this.router.navigate(['/trade', 'ROP-RNK']);
         });
 
         this.options = {

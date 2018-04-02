@@ -1,6 +1,6 @@
 import { INode } from './INode';
 import { EtherConfig } from './NodeConfig';
-import { ListingMessage, OfferMessage, AcceptMessage, SwapInfo } from './AuradexApi';
+import { ListingMessage, OfferMessage, AcceptMessage} from './AuradexApi';
 import { DexUtils } from './DexUtils';
 import { EthAtomicSwap } from './EthAtomicSwap';
 import * as EthTx from'ethereumjs-tx';
@@ -12,7 +12,7 @@ const Web3 = require('web3');
 
 export class EtherNode implements INode {
     web3: any;
-    gasGwei: BigNumber = new BigNumber(20);
+    gasGwei: BigNumber = new BigNumber(20); //proper fee estimation
     confirmTime: number = 60 * 3; // 3 minutes
     contractAddress: string;
     type: string;
