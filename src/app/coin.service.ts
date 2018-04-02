@@ -29,18 +29,18 @@ export class CoinService {
     }
 
     markets: MarketConfig[] = [
-        {
+        /*{
             coin: 'Aura',
             base: 'Ethereum',
             //webSocketServerURL: 'wss://ara-eth.auradex.net',
             webSocketServerURL: 'ws://localhost:8999',
-        },
+        },*/
         {
             coin: 'Ropsten',
             base: 'Rinkeby',
-            //webSocketServerURL: 'wss://rop-rnk.auradex.net',
-            webSocketServerURL: 'ws://localhost:8998',
-        }
+            webSocketServerURL: 'wss://rop-rnk.auradex.net',
+            //webSocketServerURL: 'ws://localhost:8998',
+        },
     ];
 
     coins: CoinConfig[] = [

@@ -11,7 +11,11 @@
     "lint": "ng lint",
     "e2e": "ng e2e",
     "electron": "electron ./src/electron.dev",
-    "elecprod": "ng build --env=prod && electron ./dist/electron.prod"
+    "elecprod": "ng build --env=prod && electron ./dist/electron.prod",
+    "package:win": "npm run build && cross-var electron-packager dist $npm_package_name-$npm_package_version --out=packages --platform=win32 --arch=all --overwrite ",
+    "package:linux": "npm run build && cross-var electron-packager dist $npm_package_name-$npm_package_version --out=packages --platform=linux --arch=all --overwrite ",
+    "package:osx": "npm run build && cross-var electron-packager dist $npm_package_name-$npm_package_version --out=packages --platform=darwin --arch=all --overwrite ",
+    "package:all": "npm run build && cross-var electron-packager dist $npm_package_name-$npm_package_version --out=packages --all --arch=all --overwrite "
   },
   "private": true,
   "dependencies": {
@@ -54,7 +58,9 @@
     "@types/jasminewd2": "~2.0.2",
     "@types/node": "~6.0.60",
     "codelyzer": "^4.0.1",
+    "cross-var": "^1.1.0",
     "electron": "^1.8.4",
+    "electron-packager": "^11.2.0",
     "jasmine-core": "~2.8.0",
     "jasmine-spec-reporter": "~4.2.1",
     "karma": "~2.0.0",
