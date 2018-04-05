@@ -252,8 +252,10 @@ export class TradeComponent implements OnInit, AfterViewInit {
             amount: amount,
             address: this.userService.getAccount()[this.market.base.name].address,
             redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
+            marketId: this.market.id,
             min: min,
             timestamp: DexUtils.UTCTimestamp(),
+            version: MESSAGE_VERSION_CODE
         };
 
         //find matches
@@ -336,8 +338,10 @@ export class TradeComponent implements OnInit, AfterViewInit {
             amount: amount,
             address: this.userService.getAccount()[this.market.coin.name].address,
             redeemAddress: this.userService.getAccount()[this.market.base.name].address,
+            marketId: this.market.id,
             min: min,
             timestamp: DexUtils.UTCTimestamp(),
+            version: MESSAGE_VERSION_CODE
         };
 
         //find matches

@@ -1,5 +1,8 @@
 import { ListingMessage, CancelMessage, OfferMessage, AcceptMessage} from './AuradexApi';
 import { INode } from './INode';
+import { SwapInfo } from './SwapInfo';
+import { Listing } from './Listing';
+import { Offer } from './Offer';
 import { BigNumber } from 'bignumber.js';
 import { Buffer } from 'buffer';
 import * as SortedArray from 'sorted-array';
@@ -11,72 +14,86 @@ const Web3 = require('web3');
 
 
 export class DexUtils {
-    static verifyListing(listing: ListingMessage, node: INode, checkFee: boolean, success: () => void, fail: (err: any) => void) {
-        node.getBalance(listing.address, function(err, bal: BigNumber) {
+    static verifyListingBalance(entry: ListingMessage, node: INode, checkFee: boolean, success: () => void, fail: (err: any) => void) {
+        node.getBalance(entry.address, function(err, bal: BigNumber) {
             if(err)
                 fail(err);
-            else
-                DexUtils.verifyListingFull(listing, node, bal, checkFee, success, fail);
+            else{        
+                var checkAmount: BigNumber;
+                if(entry.act == 'bid') {
+                    checkAmount = entry.amount.times(entry.price);
+                } else if (entry.act == 'ask') {
+                    checkAmount = entry.amount;
+                } else {
+                    fail('unknown entry type ' + entry.act);
+                    return;
+                }
+
+                if(checkFee) {
+                    checkAmount = checkAmount.plus(node.getInitFee());
+                }
+
+                if(checkAmount.isGreaterThan(bal)) {
+                    fail('lister is short on funds');
+                    return;
+                }
+            }
         });
     }
 
     static BAD_SECRET = '0000000000000000000000000000000000000000000000000000000000000000';
     static BAD_SECRET_HASHED = new RIPEMD160().update(new Buffer(DexUtils.BAD_SECRET, "hex")).digest('hex'); 
 
-    static verifyListingFull(entry: ListingMessage, node: INode, bal: BigNumber, checkFee: boolean, 
-        success: () => void, fail: (err: any) => void) {
+    static verifyListing(entry: ListingMessage, node: INode): string {
 
         //verify min
         if(entry.min.isGreaterThan(entry.amount)) {
-            fail('min ' + entry.min + ' is > than amount ' + entry.amount );
-            return;
+            return 'min ' + entry.min + ' is > than amount ' + entry.amount
         }
 
         //verify simple amounts
         if(entry.amount.isLessThanOrEqualTo(0)) {
-            fail('amount must be greater than 0');
-            return;
+            return 'amount must be greater than 0';
         }
 
         if(entry.price.isLessThanOrEqualTo(0)) {
-            fail('price must be greater than 0');
-            return;
-        }
-
-        var checkAmount: BigNumber;
-        if(entry.act == 'bid') {
-            checkAmount = entry.amount.times(entry.price);
-        } else if (entry.act == 'ask') {
-            checkAmount = entry.amount;
-        } else {
-            fail('unknown entry type ' + entry.act);
-            return;
-        }
-
-        if(checkFee) {
-            checkAmount = checkAmount.plus(node.getInitFee());
-        }
-
-        if(checkAmount.isGreaterThan(bal)) {
-            fail('lister is short on funds');
-            return;
+            return 'price must be greater than 0'
         }
 
         //verify sig
-        DexUtils.verifyListingSig(entry, node, entry.address, success, fail);
+        return DexUtils.verifyListingSig(entry, node, entry.address);
     }
 
-    static verifyOffer(offer: OfferMessage, listing: ListingMessage, checkFee: boolean, node: INode, success: () => void, fail: (err: any) => void) {
+    static verifyOfferBalance(offer: OfferMessage, listing: ListingMessage, checkFee: boolean, node: INode, success: () => void, fail: (err: any) => void) {
         node.getBalance(offer.address, function(err, bal: BigNumber) {
             if(err)
                 fail(err);
-            else
-                DexUtils.verifyOfferFull(offer, listing, node, bal, checkFee, success, fail);
+            else {
+                var checkAmount: BigNumber;
+                if(listing.act == 'ask') {
+                    checkAmount = offer.amount.times(listing.price);
+                } else if (listing.act == 'bid') {
+                    checkAmount = offer.amount;
+                } else {
+                    fail('unknown entry type ' + listing.act);
+                    return;
+                }
+
+                if(checkFee) {
+                    checkAmount = checkAmount.plus(node.getInitFee());
+                }
+
+                if(checkAmount.isGreaterThan(bal)) {
+                    fail('offeror is short on funds');
+                    return;
+                } else {
+                    success();
+                }
+            }
         });
     }
 
-    static verifyOfferFull(offer: OfferMessage, listing: ListingMessage, node: INode, bal: BigNumber, checkFee: boolean, 
-        success: () => void, fail: (err: any) => void) {
+    static verifyOffer(offer: OfferMessage, listing: ListingMessage, node: INode): string {
 
         //verify min
         if(offer.min.isGreaterThan(offer.amount)) {
@@ -100,27 +117,59 @@ export class DexUtils {
             return;
         }
 
-        var checkAmount: BigNumber;
-        if(listing.act == 'ask') {
-            checkAmount = offer.amount.times(listing.price);
-        } else if (listing.act == 'bid') {
-            checkAmount = offer.amount;
-        } else {
-            fail('unknown entry type ' + listing.act);
-            return;
-        }
-
-        if(checkFee) {
-            checkAmount = checkAmount.plus(node.getInitFee());
-        }
-
-        if(checkAmount.isGreaterThan(bal)) {
-            fail('offeror is short on funds');
-            return;
-        }
-
         //verify sig
-        DexUtils.verifyOfferSig(offer, node, offer.address, success, fail); 
+        return DexUtils.verifyOfferSig(offer, node, offer.address); 
+    }
+
+    static verifyAcceptInfo(info: SwapInfo, offer: Offer, listing: Listing): string {
+        var offerMin: BigNumber = offer.message.min;
+        var offerAmount: BigNumber = offer.message.amount;
+        if(listing.message.act == 'bid') {
+            offerMin = offerMin.times(listing.message.price);
+            offerAmount = offerAmount.times(listing.message.price);
+        }
+
+        if(info.value.isLessThan(offerMin))
+            return 'init swap amount ' + info.value + ' is less than offer min ' + offerMin;
+
+        if(info.value.isGreaterThan(offerAmount))
+            return 'init swap amount ' + info.value + ' is greater than offered amount' + offerAmount;
+
+        if(info.recipient != offer.message.redeemAddress)
+            return 'init swap transaction recipient ' + info.recipient + ' does not match offer redeem address ' + offer.message.redeemAddress;
+
+        if(info.timestamp + info.refundTime - DexUtils.UTCTimestamp() < 60 * 60 * 36) // require atleast 36 hours remaining to participate
+            return 'times up - less than 36 hours remain on init refund';
+
+        if(!info.success)
+            return 'transaction failed';
+
+        if(info.spent)
+            return 'transaction has already been spent';
+        
+        return null;
+    }
+
+    static verifyParticipateInfo(info: SwapInfo, offer: Offer, listing: Listing): string {
+        if(listing.message.act == 'bid' && !info.value.times(listing.message.price).eq(offer.acceptInfo.value))
+                return 'participate value ' + info.value + ' times price ' + listing.message.price + ' does not equal initiate amount ' + offer.acceptInfo.value;
+
+        if (listing.message.act == 'ask' && !offer.acceptInfo.value.times(listing.message.price).eq(info.value))
+            return 'participate value ' + info.value + ' does not equal initiate amount ' + offer.acceptInfo.value + ' times price ' + listing.message.price;
+
+        if(info.recipient != listing.message.redeemAddress)
+            return 'init swap transaction recipient ' + info.recipient + ' does not match listing redeem address ' + listing.message.redeemAddress;
+
+        if(info.timestamp + info.refundTime - DexUtils.UTCTimestamp() < 60 * 60 * 12) // require atleast 12 hours remaining to participate
+            return 'times up - less than 12 hours remain on participate refund';
+
+        if(!info.success)
+            return 'transaction failed';
+
+        if(info.spent)
+            return 'transaction has already been spent';
+
+        return null;
     }
 
     static sha3(message: string): string {
@@ -135,6 +184,7 @@ export class DexUtils {
             + '"amount": "' + listing.amount + '",'
             + '"min": "' + listing.min + '",'
             + '"price": "' + listing.price + '",'
+            + '"marketId": "' + listing.marketId+ '",'
             + '"timestamp": ' + listing.timestamp
             + '}';
     }
@@ -160,44 +210,29 @@ export class DexUtils {
             + '}';
     }
 
-    static getAcceptSigMessage(accept: AcceptMessage): string {
-        return '{'
-            + '"act": "' + accept.act + '",'
-            + '"offer": "' + accept.offer + '"'
-            + '"amount": "' + accept.amount + '",'
-            + '"hashedSecret": "' + accept.hashedSecret + '",'
-            + '"timestamp": ' + accept.timestamp + ','
-            + '"txId": "' + accept.txId + '"'
-            + '}';
+    static verifyCancelSig(cancel: CancelMessage, node: INode, address: string): string {
+        return DexUtils.verifyGenSig(DexUtils.getCancelSigMessage(cancel), cancel.hash, cancel.sig, address, node);
     }
 
-    static verifyCancelSig(cancel: CancelMessage, node: INode, address: string, success: () => void, fail: (err) => void) {
-        DexUtils.verifyGenSig(DexUtils.getCancelSigMessage(cancel), cancel.hash, cancel.sig, address, node, success, fail);
+    static verifyListingSig(listing: ListingMessage, node: INode, address: string): string {
+        return DexUtils.verifyGenSig(DexUtils.getListingSigMessage(listing), listing.hash, listing.sig, address, node);
     }
 
-    static verifyListingSig(listing: ListingMessage, node: INode, address: string, success: () => void, fail: (err) => void) {
-        DexUtils.verifyGenSig(DexUtils.getListingSigMessage(listing), listing.hash, listing.sig, address, node, success, fail);
+    static verifyOfferSig(offer: OfferMessage, node: INode, address: string): string {
+        return DexUtils.verifyGenSig(DexUtils.getOfferSigMessage(offer), offer.hash, offer.sig, address, node);
     }
 
-    static verifyOfferSig(offer: OfferMessage, node: INode, address: string, success: () => void, fail: (err) => void) {
-        DexUtils.verifyGenSig(DexUtils.getOfferSigMessage(offer), offer.hash, offer.sig, address, node, success, fail);
-    }
-
-    static verifyAcceptSig(accept: AcceptMessage, node: INode, address: string, success: () => void, fail: (err) => void) {
-        DexUtils.verifyGenSig(DexUtils.getAcceptSigMessage(accept), accept.hash, accept.sig, address, node, success, fail);
-    }
-
-    private static verifyGenSig(msg: string, hash: string | undefined, sig: string | undefined, address: string, node: INode, success: () => void, fail: (err) => void) {
+    private static verifyGenSig(msg: string, hash: string | undefined, sig: string | undefined, address: string, node: INode): string {
         try {
             var hsh = DexUtils.sha3(msg);
             if(hsh != hash)
-                fail('hash did not match message')
+                return 'hash did not match message';
             else if(address != node.recover(msg, sig || ''))
-                fail('invalid signature')
+                return 'invalid signature';
             else
-                success();
+                return null;
         } catch(err) {
-            fail(err);
+            return err.message;
         }
     }
 
@@ -232,9 +267,9 @@ export class DexUtils {
         return Math.floor((new Date()).getTime() / 1000);
     }
 
-    static removeFromBook(book: SortedArray, hash: string): ListingMessage | null {
+    static removeFromBook(book: SortedArray, hash: string): Listing | null {
         for(var i = 0; i < book.array.length; i++) {
-            if(book.array[i].hash == hash) {
+            if(book.array[i].message.hash == hash) {
                 return book.array.splice(i, 1)[0];
             }
         }

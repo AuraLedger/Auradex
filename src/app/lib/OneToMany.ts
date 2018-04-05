@@ -10,6 +10,13 @@ export class OneToMany {
     }
 
     get(key): any[] {
-        return this.map[key];
+        return this.map[key] || [];
+    }
+
+    take(key): any[] {
+        var result = this.get(key);
+        if(result.length > 0)
+            delete this.map[key];
+        return result;
     }
 }

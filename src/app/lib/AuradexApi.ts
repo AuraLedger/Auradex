@@ -1,6 +1,9 @@
 //interfaces for messages that are sent via websockets
 import { BigNumber } from 'bignumber.js';
 
+//serialized messages longer than this will be ignored
+export const MAX_MESSAGE_LENGTH = 500;
+
 export interface MessageBase {
     /**  message action */
     act: string; 
@@ -25,6 +28,9 @@ export interface ListingMessage extends MessageBase {
     /** price in BASE, */
     price: BigNumber; 
 
+    /** id of market*/
+    marketId: string; 
+
     /**  UTC timestamp */
     timestamp: number; 
 
@@ -33,9 +39,6 @@ export interface ListingMessage extends MessageBase {
 
     /** signature of message  */
     sig?: string; 
-    
-    /** NOT PART OF HASH, is not sent with original message, used to track remaining available locally*/
-    remaining?: BigNumber;
 }
 
 /** act: cancel 
@@ -86,57 +89,63 @@ export interface OfferMessage extends MessageBase {
 
     /**  signature of message  */
     sig?: string; 
-
-    /** txId of swap participate, NOT PART OF HASH, is not sent with original message, used to track swap progress if this is accepted */
-    txId?: string;
-
 }
 
 /** act: accept 
  * lister accepts the offer, swapping can begin 
  */
 export interface AcceptMessage extends MessageBase {
-    /**  hash of offer  */
+    /** hash of offer */
     offer: string; 
 
-    /**  trade amount of COIN, must be greater than the offers set minimum */
+    /** amount of COIN accepted */
     amount: BigNumber; 
-    
-    /**  20 byte ripemd hash of 32 byte secret, should be a hex string without a leading 0x */
-    hashedSecret: string; 
 
-    /**  UTC timestamp */
-    timestamp: number; 
+    /** hash is transaction id of swap initiation */
+    hash: string;
 
-    /** transaction of swap initiation */
-    txId: string;
-
-    /**  hash of message */
-    hash?: string; 
-
-    /**  signature of message */
-    sig?: string; 
-
-    /** NOT PART OF HASH, is not sent with original message, used to track swap progress locally */
-    finished?: boolean;
+    /** signature of hash */
+    sig?: string;
 }
 
-/** act: setFeeRates
- * fee rates from the relay server
+/** act: participate
+ * offeror participated  
  */
-export interface FeeRateMessage extends MessageBase {
-    coinFeeRate: BigNumber;
-    baseFeeRate: BigNumber;
+export interface ParticipateMessage extends MessageBase {
+    /**  hash of accept*/
+    accept: string; 
+
+    /** hash is transaction id of swap participation */
+    hash: string;
+
+    /** signature of hash */
+    sig?: string;
 }
 
-export interface SwapInfo {
-    initTimestamp: number;
-    refundTime: number;
-    hashedSecret: string;
-    secret: string;
-    initiator: string;
-    participant: string;
-    value: BigNumber;
-    emptied: boolean;
-    state: number; // 0, 1, 2 = empty, initiated, participated
+/** act: redeem 
+ * initiator redeemed participation 
+ */
+export interface RedeemMessage extends MessageBase {
+    /** hash of participation */
+    participate: string;
+
+    /** txId of redeem */
+    hash: string;
+
+    /** signature of hash */
+    sig?: string;
+}
+
+/** act: redeem 
+ * participator redeemed initiation 
+ */
+export interface FinishMessage extends MessageBase {
+    /** hash of redeem */
+    redeem: string;
+
+    /** txId of redeem/refund/sumartian */
+    hash: string;
+
+    /** signature of hash */
+    sig?: string;
 }

@@ -2,63 +2,42 @@ import { Coin, CoinConfig } from './coin';
 import * as SortedArray from 'sorted-array';
 import { BigNumber } from 'bignumber.js';
 
-import { ListingMessage, OfferMessage, AcceptMessage, CancelMessage, DexUtils, StoredArrayMap, ArrayMap, OneToMany, INode } from './lib/libauradex';
-
-interface SwapTx {
-    txId: string;
-    blockNumber: number;
-};
-
-interface Trade {
-    listing: ListingMessage;
-    offer: OfferMessage;
-    accept: AcceptMessage;
-    mine: boolean; //listing and accept are mine
-    hash: string; //usually the accept hash
-};
+import { ListingMessage, OfferMessage, AcceptMessage, CancelMessage, ParticipateMessage, RedeemMessage, DexUtils, StoredArrayMap, ArrayMap, OneToMany, INode, Listing, Offer, Trade } from './lib/libauradex';
 
 export class Market {
 
     webSocketServerURL: string;
     id: string;
 
-    bid: SortedArray = SortedArray.comparing(x => { return -x.price; }, []);
-    ask: SortedArray = SortedArray.comparing(x => { return x.price; }, []);
+    bid: SortedArray = SortedArray.comparing(x => { return -x.message.price; }, []);
+    ask: SortedArray = SortedArray.comparing(x => { return x.message.price; }, []);
 
-    bidSum: number;
-    askSum: number;
+    bidSum: BigNumber;
+    askSum: BigNumber;
 
     peers: number = 0;
 
-    listings: StoredArrayMap;
-    offers: StoredArrayMap;
-    accepts: StoredArrayMap;
-    stagedAccepts: StoredArrayMap;
-    cancels: StoredArrayMap;
-
-    myListings: ArrayMap = new ArrayMap('hash');
-    myOffers: ArrayMap = new ArrayMap('hash');
-    myAccepts: ArrayMap = new ArrayMap('hash');
-
-    offerAccept: any = {}; // offer hash to accept object
+    listings: any = {};
+    offers: any = {};
+    accepts: any = {};
+    participations: any = {};
     
-    listingOffers = new OneToMany();
-    listingAccepts = new OneToMany();
+    stagedAccepts: StoredArrayMap;
 
-    //if offers or accepts arrive before a listing, they are place here
-    //TODO: periodically clean these out
-    offerQueue = [];
-    acceptQueue = [];
-    cancelQueue = [];
-
-    cancelling: any = {};
-    matched: any = {};
+    myListings: Listing[]; 
+    myOffers: Trade[];
+    myTrades: Trade[];
+    
+    //cancelling: any = {};
+    //matched: any = {};
 
     //TODO: these are based on currect active account, need to refresh them on account switch (might not be necessary if multiple accounts are disabled)
     coinBalance: BigNumber = new BigNumber(0);
     baseBalance: BigNumber = new BigNumber(0);
     coinAvailable: BigNumber = new BigNumber(0);
     baseAvailable: BigNumber = new BigNumber(0);
+    coinAddress: string;
+    baseAddress: string;
 
     connected: boolean = false;
 
@@ -84,78 +63,133 @@ export class Market {
     ) { 
         this.webSocketServerURL = this.config.webSocketServerURL;
         this.id = this.config.id || this.coin.ticker + '-' + this.base.ticker;
-
-        this.listings = new StoredArrayMap(this.id, 'hash');
-        this.offers = new StoredArrayMap(this.id, 'hash');
-        this.accepts = new StoredArrayMap(this.id, 'hash');
-        this.stagedAccepts = new StoredArrayMap(this.id, 'hash');
-        this.cancels = new StoredArrayMap(this.id, 'hash');
+        this.stagedAccepts = new StoredArrayMap(this.id, 'hash'); //TODO: restore these on load
     }
 
-    addListing(listing: ListingMessage): boolean {
-        if(this.listings.add(listing)) {
-            if(listing.act == 'bid') {
+    addListing(msg: ListingMessage): boolean {
+        if(!this.listings.hasOwnProperty(msg.hash)) {
+
+            if(msg.marketId != this.id)
+                return false;
+
+            var listing = new Listing(msg);
+
+            this.listings[msg.hash] = listing;
+
+            if(msg.act == 'bid') {
                 this.bid.insert(listing);
-                this.calcSum(this.bid.array);
-            }
-            else {
+                this.bidSum = this.calcSum(this.bid.array);
+            } else if (msg.act == 'ask') {
                 this.ask.insert(listing);
-                this.calcSum(this.ask.array);
+                this.askSum = this.calcSum(this.ask.array);
+            } else {
+                return false;
             }
-            //console.log(listing);
+
+
+            if(this.addressIsMine(msg.address))
+                this.myListings.push(listing);
+
             return true;
         }
+
         return false;       
     }
 
-    addOffer(offer: OfferMessage): boolean {
-        if(this.offers.add(offer)) {
-            this.listingOffers.add(offer.listing, offer);
-            //console.log(offer);
-            return true;
-        }
-        return false;
-
+    addressIsMine(address: string): boolean {
+        return address == this.coinAddress || address == this.baseAddress;
     }
 
-    addMyOffer(offer: OfferMessage): boolean {
-        if(!this.listings.has(offer.listing))
-            throw 'Cannot find listing for my offer'
-
-        if(this.addOffer(offer)) {
-            this.myOffers.add(offer);
-            this.sortMyOffers();
+    addOffer(msg: OfferMessage, listing: Listing): boolean {
+        if(!this.offers.hasOwnProperty(msg.hash)) {
+            var offer = new Offer(msg);
+            listing.offers.push(offer);
+            this.offers[msg.hash] = offer;
+            if(this.addressIsMine(msg.address))
+                this.myOffers.push(new Trade(listing, offer, this.coinAddress, this.baseAddress));
+            return true;
         }
+
         return false;
     }
 
-    addMyAccept(accept: AcceptMessage): boolean {
-        if(!this.offers.has(accept.offer))
-            throw 'Cannot find offer for my accept';
-        if(!this.listings.has(this.offers.get(accept.offer).listing))
-            throw 'Cannot find listing for accept';
-
-        if(this.addAccept(accept)) {
-            this.myAccepts.add(accept);
-            this.sortMyAccepts();
+    addAccept(msg: AcceptMessage, offer: Offer, listing: Listing): boolean {
+        if(!this.accepts.hasOwnProperty(msg.hash)) {
+            offer.accept = msg;
+            this.accepts[msg.hash] = msg;
+            if(this.addressIsMine(listing.message.address))
+                this.myTrades.push(new Trade(listing, offer, this.coinAddress, this.baseAddress));
+            this.updateListing(listing);
+            //TODO: move myOffers to myTrades in the process trade cycle, and call setVals on trade again
             return true;
         }
+
+        return false;
+    }
+
+    unaccept(msg: AcceptMessage, offer: Offer, listing: Listing): void {
+        offer.accept = null;
+        offer.acceptInfo = null;
+        this.updateListing(listing);
+    }
+
+    addParticipate(msg: ParticipateMessage, accept: AcceptMessage, offer: Offer): boolean {
+        if(!this.participations.hasOwnProperty(msg.hash)) {
+            offer.participate = msg;
+            this.participations[msg.hash] = msg;
+            return true;
+        }
+
+        return false;
+    }
+
+    addRedeem(msg: RedeemMessage, offer: Offer) {
+        if(msg.participate == offer.participate.hash)
+        {
+            offer.redeem = msg;
+            return true;
+        }
+
         return false;
     }
 
     //TODO: reduce listing amount on books after accept has been made
-    finishMyAccept(accept: AcceptMessage) {
-        var listing = this.listings.get(this.offers.get(accept.offer).listing);
-        var remaining = this.getListingRemaining(listing);
+    updateListing(listing: Listing) {
+        var accepted = listing.offers.reduce((sum, o) => sum.plus(o.accept ? o.accept.amount : 0), new BigNumber(0));
+        var prev = listing.remaining;
+        listing.remaining = listing.message.amount.minus(accepted);
 
-        if(remaining.isLessThan(listing.min)) { 
-            if(listing.act == 'bid') { 
-                DexUtils.removeFromBook(this.bid, listing.hash);
+        if(listing.remaining.isLessThan(listing.message.min)) {
+            if(prev.isGreaterThanOrEqualTo(listing.message.min)) {
+                if(listing.message.act == 'bid') { 
+                    DexUtils.removeFromBook(this.bid, listing.message.hash);
+                }
+                if(listing.message.act == 'ask') {
+                    DexUtils.removeFromBook(this.ask, listing.message.hash)
+                }
+                if(this.addressIsMine(listing.message.address)) {
+                    this.removeArrayHash(this.myListings, listing.message.hash);
+                } 
             }
-            if(listing.act == 'ask') {
-                DexUtils.removeFromBook(this.ask, listing.hash)
+        } else if (prev.isLessThan(listing.message.min)) {
+            if(listing.message.act == 'bid') { 
+                this.bid.insert(listing);
             }
-            this.myListings.remove(listing.hash);
+            if(listing.message.act == 'ask') {
+                this.ask.insert(listing);
+            }
+            if(this.addressIsMine(listing.message.address)) {
+                this.myListings.push(listing);
+            }
+        }
+
+        if(prev != listing.remaining) {
+            if(listing.message.act == 'bid') { 
+                this.bidSum = this.calcSum(this.bid.array);
+            }
+            if(listing.message.act == 'ask') { 
+                this.askSum = this.calcSum(this.ask.array);
+            }
         }
     }
 
@@ -164,21 +198,24 @@ export class Market {
         var fee = this.coin.node.getInitFee();
         var sum: BigNumber = new BigNumber(0);
 
-        this.myListings.array.forEach(l => {
-            if(l.act == 'ask') {
-                sum = sum.plus(that.getListingRemaining(l)).plus(fee);
+        this.myListings.forEach(l => {
+            if(l.message.act == 'ask') {
+                sum = sum.plus(l.remaining).plus(fee);
             }
         });
 
-        this.myOffers.array.forEach(o => {
-            if(!o.txId || o.txId.length == 0) {
-                var l = that.listings.get(o.listing);
-                if(l.act == 'bid') {
-                    var amount = o.amount;
-                    if(that.offerAccept.hasOwnProperty(o.hash))
-                        amount = that.offerAccept[o.hash].amount;
-                    sum = sum.plus(amount).plus(fee);
-                }
+        this.myOffers.forEach(o => {
+            if(o.listing.message.act == 'bid') {
+                var amount = o.offer.message.amount;
+                sum = sum.plus(amount).plus(fee);
+            }
+        });
+
+        this.myTrades.forEach(o => {
+            if(that.addressIsMine(o.listing.message.address) && o.listing.message.act == 'ask') {
+                sum = sum.plus(o.offer.accept.amount);
+            } else if (that.addressIsMine(o.offer.message.address) && o.listing.message.act == 'bid') {
+                sum = sum.plus(o.offer.accept.amount);
             }
         });
 
@@ -190,21 +227,24 @@ export class Market {
         var fee = this.base.node.getInitFee();
         var sum: BigNumber = new BigNumber(0);
 
-        this.myListings.array.forEach(l => {
-            if(l.act == 'bid') {
-                sum = sum.plus(that.getListingRemaining(l).times(l.price)).plus(fee);
+        this.myListings.forEach(l => {
+            if(l.message.act == 'bid') {
+                sum = sum.plus(l.remaining.times(l.message.price)).plus(fee);
             }
         });
 
-        this.myOffers.array.forEach(o => {
-            if(!o.txId || o.txId.length == 0) {
-                var l = that.listings.get(o.listing);
-                if(l.act == 'ask') {
-                    var amount = o.amount;
-                    if(that.offerAccept.hasOwnProperty(o.hash))
-                        amount = that.offerAccept[o.hash].amount;
-                    sum = sum.plus(amount.times(l.price)).plus(fee);
-                }
+        this.myOffers.forEach(o => {
+            if(o.listing.message.act == 'ask') {
+                var amount = o.offer.message.amount.times(o.listing.message.price);
+                sum = sum.plus(amount).plus(fee);
+            }
+        });
+
+        this.myTrades.forEach(o => {
+            if(that.addressIsMine(o.listing.message.address) && o.listing.message.act == 'bid') {
+                sum = sum.plus(o.offer.accept.amount.times(o.listing.message.price));
+            } else if (that.addressIsMine(o.offer.message.address) && o.listing.message.act == 'ask') {
+                sum = sum.plus(o.offer.accept.amount.times(o.listing.message.price));
             }
         });
 
@@ -213,42 +253,30 @@ export class Market {
 
     //TODO: retore listings/offers/accepts/initTransactions on load from localStorage
     //TODO: maybe request books from another user
-    //TODO: when restoring from localStorage, manually call addMy* methods
-    addMyListing(listing: ListingMessage) {
-        if(this.addListing(listing)) {
-            this.myListings.add(listing);
-            this.sortMyListings();
-        }
-    }
-
     sortMyListings() {
-        this.sortMyList(this.myListings.array, this.mySortProperty, this.mySortDir);
+        this.sortMyList(this.myListings, this.mySortProperty, this.mySortDir);
     }
 
     //TODO: maybe? wrap all messages in new objects with more properties for client side handling // or atleast clean messsages upon receipt
     sortMyOffers() {
-        this.sortMyList(this.myOffers.array, this.myOfferSortProperty, this.myOfferSortDir);
+        this.sortMyList(this.myOffers, this.myOfferSortProperty, this.myOfferSortDir);
     }
 
     sortMyAccepts() {
-        this.sortMyList(this.myAccepts.array, this.myAccSortProperty, this.myAccSortDir);
+        this.sortMyList(this.myTrades, this.myAccSortProperty, this.myAccSortDir);
     }
 
     sortMyList(arr: any[], property: string, direction: boolean) {
-        if(property == 'size')
-            arr.sort((a,b) => { return (a.amount * a.price - b.amount * b.price) * (direction ? -1: 1); });
-        else {
-            this.myListings.array.sort((a, b) => {
-                var result = 0;
-                if(a[property] > b[property])
-                    result = 1;
-                else if (b[property] > a[property])
-                    result = -1;
-                if(direction)
-                    result = result * -1;
-                return result;
-            });
-        }
+        arr.sort((a, b) => {
+            var result = 0;
+            if(a[property] > b[property])
+                result = 1;
+            else if (b[property] > a[property])
+                result = -1;
+            if(direction)
+                result = result * -1;
+            return result;
+        });
     }
 
     mySort(prop: string) {
@@ -285,68 +313,53 @@ export class Market {
         throw 'invlid act ' + act;
     }
 
-    getOfferCoin(offer): Coin {
-        return this.getActCoin(DexUtils.other(this.listings.get(offer.listing).act));
+    getOfferCoin(offer: OfferMessage): Coin {
+        return this.getActCoin(DexUtils.other(this.listings[offer.listing].message.act));
     }
 
     cancel(message: CancelMessage) {
-        //TODO: don't remove from storage, just set cancel property when this is wrapped with a client object
-        //TODO: don't cancel if it's been accepted already // only cancel remaining amount
-        this.cancels.add(message);
-        var listing = this.listings.get(message.listing);
-        if(listing.act == 'bid') {
+        var listing: Listing = this.listings[message.listing];
+        listing.cancel = message;
+
+        if(listing.message.act == 'bid') {
             DexUtils.removeFromBook(this.bid, message.listing); 
         }
-        if(listing.act == 'ask') {
+
+        if(listing.message.act == 'ask') {
             DexUtils.removeFromBook(this.ask, message.listing);
         }
-        
-        this.myListings.remove(message.listing);
-        if(!this.listingAccepts.map.hasOwnProperty(message.listing))
-            (this.listingOffers.get(listing.hash) || []).forEach(o => this.cancelOffer(o));
+
+        if(this.addressIsMine(listing.message.address)) {
+            this.removeArrayHash(this.myListings, listing.message.hash);
+        }
+
+        return true;
     }
 
-    cancelOffer(offer: OfferMessage) {
-        this.myOffers.remove(offer.hash);
-        //TODO: set canelled status on new offer object (when implemented) but check for accept and swap status first
-        //TODO: if there is an accept, do not cancel
+    removeArrayHash(array, hash) {
+        for(var i = 0; i < array.length; i++) {
+            if(array[i].message.hash == hash) {
+                array.splice(i, 1);
+                return;
+            }
+        }
     }
 
-    getPotentialAcceptAmount(offer): BigNumber {
-        var listing = this.listings.get(offer.listing);
-        this.getListingRemaining(listing);
-        if(listing.remaining.isGreaterThanOrEqualTo(listing.min) && listing.remaining.isGreaterThanOrEqualTo(offer.min))
+    getPotentialAcceptAmount(offer: OfferMessage): BigNumber {
+        var listing: Listing = this.listings[offer.listing];
+        this.updateListing(listing);
+        if(listing.remaining.isGreaterThanOrEqualTo(listing.message.min) && listing.remaining.isGreaterThanOrEqualTo(offer.min))
             return BigNumber.minimum(offer.amount, listing.remaining);
         return new BigNumber(0);
     }
 
-    getListingRemaining (listing: ListingMessage): BigNumber {
-        var accepts = this.listingAccepts.get(listing.hash) || [];
-        var accepted = new BigNumber(accepts.reduce((sum: BigNumber, accept: AcceptMessage) => {
-            sum = sum.plus(accept.amount);
-            return sum;
-        }, new BigNumber(0)) || new BigNumber(0));
-        listing.remaining = listing.amount.minus(accepted);
-        return listing.remaining;
-    }
-
-    addAccept(accept: AcceptMessage): boolean {
-        if(this.accepts.add(accept)) {
-            this.offerAccept[accept.offer] = accept;
-            var offer = this.offers.get(accept.offer);
-            this.listingAccepts.add(offer.listing, accept);
-            //console.log(accept);
-            return true;
-        }
-        return false;
-    }
-
-    calcSum(entries: any[]): void {
-        var sum = 0;
+    calcSum(entries: Listing[]): BigNumber {
+        var sum = new BigNumber(0);
         for(var i = 0; i < entries.length; i++) {
-            sum = sum + (entries[i].price * entries[i].amount); 
+            sum = sum.plus(entries[i].message.price.times(entries[i].remaining));
             entries[i].sum = sum;
         }
+        return sum;
     }
 }
 

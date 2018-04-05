@@ -1,4 +1,5 @@
 import { ListingMessage, OfferMessage, AcceptMessage} from './AuradexApi';
+import { SwapInfo } from './SwapInfo';
 import { BigNumber } from 'bignumber.js';
 
 export interface INode {
@@ -12,13 +13,18 @@ export interface INode {
 
     send(amount: BigNumber, from: string, to: string, privateKey: string, options: any, success: (txId: string) => void, fail: (err: any) => void): void;
 
-    confirmTime: number;
+    /** number of confirmations before tx is considered safe */
+    confirmations: number;
 
     //swap actions
-    initSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
-    acceptSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
+    initSwap(listing: ListingMessage, offer: OfferMessage, hashedSecret: string, amount: BigNumber, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
+    acceptSwap(listing: ListingMessage, offer: OfferMessage, acceptInfo: SwapInfo, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void; 
     redeemSwap(address: string, hashedSecret: string, secret: string, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void;
     refundSwap(address: string, hashedSecret: string, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void;
+
+    //verify tx
+    getSwapInitTx(txId: string, success: (info: SwapInfo) => void, fail: (err: any) => void): void;
+    getSwapRedeemTx(txId: string, success: (info: SwapInfo) => void, fail: (err: any) => void): void;
 
     //swap checks
     getInitTimestamp(hashedSecret, success: (initTimestamp: number) => void, fail: (err: any) => void): void;
