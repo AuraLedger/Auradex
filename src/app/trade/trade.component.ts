@@ -14,7 +14,7 @@ import { BigNumberPipe } from '../big-number.pipe';
 import { Market } from '../market';
 import { Coin } from '../coin';
 
-import { ListingMessage, DexUtils, CancelMessage, INode, ArrayMap } from '../lib/libauradex';
+import { ListingMessage, DexUtils, CancelMessage, INode, ArrayMap, Listing, Offer, Trade } from '../lib/libauradex';
 
 @Component({
     selector: 'app-trade', 
@@ -76,18 +76,17 @@ export class TradeComponent implements OnInit, AfterViewInit {
             this.markets.push(this.coinService.marketd[mKeys[i]]);
     }
 
-    cancel(listing: ListingMessage): void {
+    cancel(listing: Listing): void {
         var that = this;
-        var coin = listing.act == 'bid' ? this.market.base : this.market.coin;
-        //TODO: make sure there are no active swaps for this listing
+        var l = listing.message;
+        var coin = l.act == 'bid' ? this.market.base : this.market.coin;
         that.userService.getPrivateKey(coin.name, (key) => {
-            that.market.cancelling[listing.hash] = true; //TODO: add to market and check before accepting trades
+            listing.cancelling = true;
             that.userService.areYouSure('Cancel', 'Are you sure?', function() {
                 that.websocketService.getSocket(that.market, function(ws) {
-
                     var cancelMessage: CancelMessage = {
                         act: 'cancel',
-                        listing: listing.hash,
+                        listing: l.hash,
                         timestamp: DexUtils.UTCTimestamp()
                     };
                     var msg = DexUtils.getCancelSigMessage(cancelMessage);
@@ -96,12 +95,11 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
                     ws.send(JSON.stringify(cancelMessage));
                     that.market.cancel(cancelMessage);
-                    delete that.market.cancelling[listing.hash];
                     that.websocketService.updateBookBalances(coin.name);
                 });
             }, () => {
-                delete that.market.cancelling[listing.hash];
-                //TODO: check for trade offers that may have came in
+                listing.cancelling = false;
+                that.websocketService.processOrphans(listing.message, that.market);
             });
         });
     }
@@ -213,11 +211,18 @@ export class TradeComponent implements OnInit, AfterViewInit {
         return null;
     }
 
-    //TODO: make sure they don't also have an ask with a better price
     placeBid() {
         var amount = new BigNumber((this.bidAmount || 0).toString());
         var price = new BigNumber((this.bidPrice || 0).toString());
         var min = new BigNumber((this.bidMin || 0).toString());
+
+        for(var i = 0; i < this.market.myListings.length; i++) {
+            var l = this.market.myListings[i];
+            if(l.message.act == 'ask' && l.message.price.isLessThanOrEqualTo(price)) {
+                this.userService.showError('You currently have a sell for a lower price, cancel that first');
+                return;
+            }
+        }
 
         if(amount.isLessThanOrEqualTo(0))
             return;
@@ -254,8 +259,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
             redeemAddress: this.userService.getAccount()[this.market.coin.name].address,
             marketId: this.market.id,
             min: min,
-            timestamp: DexUtils.UTCTimestamp(),
-            version: MESSAGE_VERSION_CODE
+            timestamp: DexUtils.UTCTimestamp()
         };
 
         //find matches
@@ -275,40 +279,59 @@ export class TradeComponent implements OnInit, AfterViewInit {
                             var msg = DexUtils.getListingSigMessage(entry);
                             entry.hash = DexUtils.sha3(msg);
                             entry.sig = that.market.base.node.signMessage(msg, key);
-                            ws.send(JSON.stringify(entry));
-                            that.market.addMyListing(entry);
-                            that.bidAmount = 0;
+                            if(that.websocketService.processMessage(that.market, entry)) {
+                                ws.send(JSON.stringify(entry));
+                                that.bidAmount = 0;
+                            } else {
+                                that.userService.showError('error placing bid');
+                            }
                         }
                     }
-                };
+                }; 
                 offers.forEach((offer) => {
-                    var listing = that.market.listings.get(offer.listing);
-                    DexUtils.verifyListing(listing, that.market.coin.node, false, () => {
-                        var msg = DexUtils.getOfferSigMessage(offer);
-                        offer.hash = DexUtils.sha3(msg);
-                        offer.sig = that.market.base.node.signMessage(msg, key);
-                        ws.send(JSON.stringify(offer));
-                        that.bidAmount = 0;
-                        that.userService.showSuccess("Offer has been placed, waiting for lister to accept");
-                        that.market.addMyOffer(offer);
-                        allDone(true);
-                    }, (error) => {
-                        that.userService.handleError(error);
-                        entry.amount = entry.amount.plus(offer.amount); //add unused maount back onto offer
-                        allDone(true);
-                    });
+                    var listing: Listing = that.market.listings[offer.listing];
+                    var error = DexUtils.verifyListing(listing.message, that.market.coin.node);
+                    if(error)
+                        that.userService.showError(error);
+                    else {
+                        DexUtils.verifyListingBalance(listing.message, that.market.coin.node, false, () => {
+                            var msg = DexUtils.getOfferSigMessage(offer);
+                            offer.hash = DexUtils.sha3(msg);
+                            offer.sig = that.market.base.node.signMessage(msg, key);
+
+                            if(that.websocketService.processMessage(that.market, offer)) {
+                                ws.send(JSON.stringify(offer));
+                                that.bidAmount = 0;
+                                that.userService.showSuccess("Offer has been placed, waiting for lister to accept");
+                            } else {
+                                that.userService.showError('error placing bid offer');
+                                entry.amount = entry.amount.plus(offer.amount); //add unused maount back onto offer
+                            }
+                            allDone(true);
+                        }, (error) => {
+                            that.userService.handleError(error);
+                            entry.amount = entry.amount.plus(offer.amount); //add unused maount back onto offer
+                            allDone(true);
+                        });
+                    }
                 }); 
                 allDone(false); //incase 0 offers found
             });
         });
     }
 
-    //TODO: make sure they don't also have an bid with a better price
     placeAsk() {
-
         var amount = new BigNumber((this.askAmount || 0).toString());
         var price = new BigNumber((this.askPrice || 0).toString());
         var min = new BigNumber((this.askMin || 0).toString());
+
+        for(var i = 0; i < this.market.myListings.length; i++) {
+            var l = this.market.myListings[i];
+            if(l.message.act == 'bid' && l.message.price.isGreaterThanOrEqualTo(price)) {
+                this.userService.showError('You currently have a buy for a higher price, cancel that first');
+                return;
+            }
+        }
 
         if(this.market.coinAvailable.isLessThan(amount)) {
             this.userService.showError('not enough funds');
@@ -341,7 +364,6 @@ export class TradeComponent implements OnInit, AfterViewInit {
             marketId: this.market.id,
             min: min,
             timestamp: DexUtils.UTCTimestamp(),
-            version: MESSAGE_VERSION_CODE
         };
 
         //find matches
@@ -361,27 +383,41 @@ export class TradeComponent implements OnInit, AfterViewInit {
                             var msg = DexUtils.getListingSigMessage(entry);
                             entry.hash = DexUtils.sha3(msg);
                             entry.sig = that.market.coin.node.signMessage(msg, key);
-                            ws.send(JSON.stringify(entry));
-                            that.market.addMyListing(entry);
+                            if(that.websocketService.processMessage(that.market, entry)) {
+                                ws.send(JSON.stringify(entry));
+                                that.askAmount = 0;
+                            } else {
+                                that.userService.showError('error placing ask');
+                            }
                         }
                     }
-                };
+                }; 
                 offers.forEach((offer) => {
-                    var listing = that.market.listings.get(offer.listing);
-                    DexUtils.verifyListing(listing, that.market.base.node, false, () => {
-                        var msg = DexUtils.getOfferSigMessage(offer);
-                        offer.hash = DexUtils.sha3(msg);
-                        offer.sig = that.market.coin.node.signMessage(msg, key);
-                        ws.send(JSON.stringify(offer));
-                        that.askAmount = 0;
-                        that.userService.showSuccess("Offer has been placed, waiting for lister to accept");
-                        that.market.addMyOffer(offer);
-                        allDone(true);
-                    }, (error) => {
-                        that.userService.handleError(error);
-                        entry.amount = entry.amount.plus(offer.amount); //add unused maount back onto offer
-                        allDone(true);
-                    });
+                    var listing: Listing = that.market.listings[offer.listing];
+                    var error = DexUtils.verifyListing(listing.message, that.market.base.node);
+                    if(error)
+                        that.userService.showError(error);
+                    else {
+                        DexUtils.verifyListingBalance(listing.message, that.market.base.node, false, () => {
+                            var msg = DexUtils.getOfferSigMessage(offer);
+                            offer.hash = DexUtils.sha3(msg);
+                            offer.sig = that.market.base.node.signMessage(msg, key);
+
+                            if(that.websocketService.processMessage(that.market, offer)) {
+                                ws.send(JSON.stringify(offer));
+                                that.askAmount = 0;
+                                that.userService.showSuccess("Offer has been placed, waiting for lister to accept");
+                            } else {
+                                that.userService.showError('error placing ask offer');
+                                entry.amount = entry.amount.plus(offer.amount); //add unused maount back onto offer
+                            }
+                            allDone(true);
+                        }, (error) => {
+                            that.userService.handleError(error);
+                            entry.amount = entry.amount.plus(offer.amount); //add unused maount back onto offer
+                            allDone(true);
+                        });
+                    }
                 }); 
                 allDone(false); //incase 0 offers found
             });
@@ -439,93 +475,58 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
         //if there is no account, TODO: prompt user to create one
         var account = this.userService.getAccount();
-        var activeMarkets = {};
-        var myMarkets = {};
-        var aMarket: Market;
-        var login: boolean = false;
         if(!account) {
             var urlSegments = this.route.snapshot.url;
             if(urlSegments.length < 1 || urlSegments[0].path != 'wallet')
                 this.router.navigate(['/wallet']);
         } else {
-            //restore books, connect to markets with active trades, prompt login
-            var that = this;
-            var stgKeys = [];
-            for(var i = 0; i < localStorage.length; i++) {
+            var expire = DexUtils.UTCTimestamp() - 60 * 60 * 24 * 4; // 4 days
+            var keys: string[] = [];
+            for(var i = 0; i < localStorage.length; i++)
+            {
                 var key = localStorage.key(i);
-                if(!key.startsWith('auradex'))
-                    stgKeys.push(localStorage.key(i));
-            }
-            var expire = DexUtils.UTCTimestamp() - 60 * 60 * 24 * 4;
-            stgKeys.forEach((k: string) => {
-                var idx = k.indexOf('0x');
-                if(idx == -1)
-                    idx = k.indexOf('staged');
-                if(idx > 0)
-                {
-                    var marketId = k.substring(0, idx);
-                    var hash = k.substring(idx);
-                    var market: Market = that.coinService.marketd[marketId];
-
-                    if(market) {
-
-                        if(!activeMarkets.hasOwnProperty(marketId)) {
-                            activeMarkets[marketId] = market;
-                        }
-
-                        var json = JSON.parse(localStorage.getItem(k));
-                        that.websocketService.setNumbers(json);
-                        var mine = false;
-
-                        if(json.address == account[market.coin.name].address || json.address == account[market.base.name].address) {
-                            mine = true;
-                        }
-
-                        if(json.act == 'cancel') {
-                            market.cancelQueue.push(json);
-                        } else if(json.act == 'offer') {
-                            market.offerQueue.push(json);
-                        } else if(json.act == 'accept') {
-                            if(json.hash.startsWith('staged'))
-                                market.stagedAccepts.add(json);
-                            else
-                                market.acceptQueue.push(json);
-                        } else if (json.act == 'bid' || json.act == 'ask') {
-                            that.websocketService.processMessage(market, json, mine, true);
-                        }
-
-                        if (mine && !myMarkets.hasOwnProperty(marketId)) {
-                            login = true;
-                            myMarkets[marketId] = market;
-                        }
+                if(!key.startsWith('auradex')) {
+                    var json = JSON.parse(localStorage.getItem(key));
+                    if(json.receivedon < expire) {
+                        localStorage.removeItem(key); 
+                    } else if(json.timestamp && json.timestamp < expire) {
+                        localStorage.removeItem(key); 
+                    } else {
+                        this.websocketService.messages[json.hash] = json;
+                        keys.push[key];
                     }
+                }
+            }
+
+            var wss = this.websocketService;
+            keys.forEach(key => {
+                var json = wss.messages[key];
+                var market = wss.getMarket(json);
+                if(market) {
+                    wss.processMessage(json, market);
+                    wss.processOrphans(json, market);
                 }
             });
 
-            //for each market
-            for(var key in activeMarkets) {
-                if(activeMarkets.hasOwnProperty(key)) {
-                    var market: Market = activeMarkets[key];
-                    that.websocketService.reevalCancelQueue(market);
-                    that.websocketService.reevalOfferQueue(market, true);
-                    that.websocketService.reevalAcceptQueue(market, true);
+            var myMarkets: Market[] = [];
+            for(var mid in this.coinService.marketd) {
+                if(this.coinService.marketd.hasOwnProperty(mid)) {
+                    var mrkt = this.coinService.marketd[mid];
+                    if(mrkt.myListings.length > 0 || mrkt.myOffers.length > 0 || mrkt.myTrades.length > 0) {
+                        myMarkets.push(mrkt);
+                    }
                 }
             }
 
-            if(login) {
-                setTimeout(() => { //wait for next update cycle
-                    var aMarket: Market = myMarkets[0];
-                    that.userService.getTradePrivateKey(market.coin.name, (privKey) => {
-                        if(privKey) {
-                            //for each market with object of mine, connect
-                            for(var key in myMarkets) {
-                                if(myMarkets.hasOwnProperty(key)) {
-                                    var market: Market = myMarkets[key];
-                                    that.websocketService.connect(market);
-                                }
-                            }           
+            if(myMarkets.length > 0) {
+                setTimeout(function() {
+                    this.userService.getTradePrivateKey(myMarkets[0].coin.name, (key) => {
+                        if(key) {
+                            for(var i = 0; i < myMarkets.length; i++) {
+                                wss.connect(myMarkets[i]);
+                            }
                         }
-                    }, {});
+                    });
                 }, 100);
             }
         }
@@ -2460,11 +2461,4 @@ export class TradeComponent implements OnInit, AfterViewInit {
             [1519689600000,179.10,180.48,178.16,178.39,38928125]
         ];
     }
-}
-
-export interface Bid{
-    sum: number;
-    amount: number;
-    price: number;
-    total: number;
 }

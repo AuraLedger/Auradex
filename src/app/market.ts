@@ -21,12 +21,15 @@ export class Market {
     offers: any = {};
     accepts: any = {};
     participations: any = {};
+    refunds: any = {};
+    redeems: any = {};
     
     stagedAccepts: StoredArrayMap;
 
-    myListings: Listing[]; 
-    myOffers: Trade[];
-    myTrades: Trade[];
+    myListings: Listing[] = []; 
+    myOffers: Trade[] = [];
+    myTrades: Trade[] = [];
+    completedTrades: Trade[] = [];
     
     //cancelling: any = {};
     //matched: any = {};
@@ -117,10 +120,9 @@ export class Market {
         if(!this.accepts.hasOwnProperty(msg.hash)) {
             offer.accept = msg;
             this.accepts[msg.hash] = msg;
-            if(this.addressIsMine(listing.message.address))
+            if(this.addressIsMine(listing.message.address) || this.addressIsMine(offer.message.address))
                 this.myTrades.push(new Trade(listing, offer, this.coinAddress, this.baseAddress));
             this.updateListing(listing);
-            //TODO: move myOffers to myTrades in the process trade cycle, and call setVals on trade again
             return true;
         }
 
@@ -161,15 +163,7 @@ export class Market {
 
         if(listing.remaining.isLessThan(listing.message.min)) {
             if(prev.isGreaterThanOrEqualTo(listing.message.min)) {
-                if(listing.message.act == 'bid') { 
-                    DexUtils.removeFromBook(this.bid, listing.message.hash);
-                }
-                if(listing.message.act == 'ask') {
-                    DexUtils.removeFromBook(this.ask, listing.message.hash)
-                }
-                if(this.addressIsMine(listing.message.address)) {
-                    this.removeArrayHash(this.myListings, listing.message.hash);
-                } 
+                this.deleteListing(listing);
             }
         } else if (prev.isLessThan(listing.message.min)) {
             if(listing.message.act == 'bid') { 
@@ -257,7 +251,6 @@ export class Market {
         this.sortMyList(this.myListings, this.mySortProperty, this.mySortDir);
     }
 
-    //TODO: maybe? wrap all messages in new objects with more properties for client side handling // or atleast clean messsages upon receipt
     sortMyOffers() {
         this.sortMyList(this.myOffers, this.myOfferSortProperty, this.myOfferSortDir);
     }
@@ -320,20 +313,22 @@ export class Market {
     cancel(message: CancelMessage) {
         var listing: Listing = this.listings[message.listing];
         listing.cancel = message;
+        this.deleteListing(listing);
+        return true;
+    }
 
+    deleteListing(listing: Listing) {
         if(listing.message.act == 'bid') {
-            DexUtils.removeFromBook(this.bid, message.listing); 
+            DexUtils.removeFromBook(this.bid, listing.message.hash); 
         }
 
         if(listing.message.act == 'ask') {
-            DexUtils.removeFromBook(this.ask, message.listing);
+            DexUtils.removeFromBook(this.ask, listing.message.hash);
         }
 
         if(this.addressIsMine(listing.message.address)) {
             this.removeArrayHash(this.myListings, listing.message.hash);
         }
-
-        return true;
     }
 
     removeArrayHash(array, hash) {

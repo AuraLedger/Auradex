@@ -1,4 +1,4 @@
-import { ListingMessage, CancelMessage, OfferMessage, AcceptMessage, ParticipateMessage, RedeemMessage} from './AuradexApi'
+import { ListingMessage, CancelMessage, OfferMessage, AcceptMessage, ParticipateMessage, RedeemMessage, RefundMessage, FinishMessage} from './AuradexApi'
 import { SwapInfo, RedeemInfo, RefundInfo } from './SwapInfo'
 
 export class Offer {
@@ -9,9 +9,9 @@ export class Offer {
     participateInfo: SwapInfo;
     redeem: RedeemMessage;
     redeemInfo: RedeemInfo;
-    refund: any; //refund message
+    refund: RefundMessage;
     refundInfo: RefundInfo;
-    finish: any; //finish message
+    finish: FinishMessage; 
 
     constructor(msg: OfferMessage) {
         this.message = msg;

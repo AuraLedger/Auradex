@@ -3,7 +3,7 @@ import { Coin } from './coin';
 import { Market } from './market';
 import { UserService } from './user.service';
 import { CoinService } from './coin.service';
-import { ListingMessage, DexUtils, CancelMessage, OfferMessage, AcceptMessage, SwapInfo, RedeemInfo, RefundInfo, INode, ParticipateMessage, RedeemMessage, OneToMany, Listing, Offer, Trade, MAX_MESSAGE_LENGTH } from './lib/libauradex';
+import { ListingMessage, DexUtils, CancelMessage, OfferMessage, AcceptMessage, SwapInfo, RedeemInfo, RefundInfo, INode, ParticipateMessage, RedeemMessage, FinishMessage, OneToMany, Listing, Offer, Trade, MAX_MESSAGE_LENGTH } from './lib/libauradex';
 import { BigNumber } from 'bignumber.js';
 import { LocalStorageService } from 'angular-2-local-storage';
 import { CryptoService } from './crypto.service';
@@ -36,26 +36,33 @@ export class WebsocketService {
         this.socks = {};
     }
 
-    private getMarket(json: any): Market {
+    getMarket(json: any): Market {
+        return this.getListingMarket(this.getBaseListingMessage(json));
+    }
+
+    getBaseListingMessage(json: any) {
+        if(!json)
+            return null;
         switch(json.act) {
             case 'bid': //fall through
-            case 'ask': return this.getListingMarket(json); 
-            case 'cancel': return this.getMarket(this.messages[json.listing]);
-            case 'offer': return this.getMarket(this.messages[json.listing]);
-            case 'accept': return this.getMarket(this.messages[json.offer]);
-            case 'participate': return this.getMarket(this.messages[json.accept]);
-            case 'redeem': return this.getMarket(this.messages[json.participate]);
-            case 'finish':return this.getMarket(this.messages[json.redeem]);
-            case 'staged':return this.getMarket(this.messages[json.offer]);
+            case 'ask': return json; 
+            case 'cancel': return this.messages[json.listing];
+            case 'offer': return this.messages[json.listing];
+            case 'accept': return this.getBaseListingMessage(this.messages[json.offer]);
+            case 'participate': return this.getBaseListingMessage(this.messages[json.accept]);
+            case 'redeem': return this.getBaseListingMessage(this.messages[json.participate]);
+            case 'finish':return this.getBaseListingMessage(this.messages[json.redeem]);
+            case 'staged':return this.getBaseListingMessage(this.messages[json.offer]);
             default: return null;
         }
     }
 
     private getListingMarket(listing: ListingMessage): Market {
-        return this.coinService.marketd[listing.marketId];
+        if(listing)
+            return this.coinService.marketd[listing.marketId];
     }
 
-    private processOrphans(json: any, market: Market) {
+    processOrphans(json: any, market: Market) {
         var that = this;
         this.orphans.take(json.hash).forEach(o => { //take clears orphans, and they are readded if parent still not found when reprocessed 
             that.processMessage(market, o);
@@ -72,34 +79,7 @@ export class WebsocketService {
     connect(market: Market, cb?) {
         if(!this.connected)
         {
-            //TODO: restore messages on first market connect
-            var expire = DexUtils.UTCTimestamp() - 60 * 60 * 24 * 4; // 4 days
-            var keys: string[] = [];
-            for(var i = 0; i < localStorage.length; i++)
-            {
-                var key = localStorage.key(i);
-                if(!key.startsWith('auradex')) {
-                    var json = JSON.parse(localStorage.getItem(key));
-                    if(json.receivedon < expire) {
-                        localStorage.removeItem(key); 
-                    } else if(json.timestamp && json.timestamp < expire) {
-                        localStorage.removeItem(key); 
-                    } else {
-                        this.messages[json.hash] = json;
-                        keys.push[key];
-                    }
-                }
-            }
 
-            var that = this;
-            keys.forEach(key => {
-                var json = that.messages[key];
-                var market = that.getMarket(json);
-                if(market) {
-                    that.processMessage(json, market);
-                    that.processOrphans(json, market);
-                }
-            });
 
             this.connected = true; 
         }
@@ -135,7 +115,7 @@ export class WebsocketService {
                     return;
                 var json = JSON.parse(evt.data);
 
-                if(json.act == 'finish' || json.act == 'staged') //ignore finish messages, should only be used locally
+                if(json.act == 'staged') //ignore staged messages, should only be used locally
                     return;
 
                 json.receivedon = DexUtils.UTCTimestamp();
@@ -416,184 +396,36 @@ export class WebsocketService {
         }
         return true;
     }
-        /*
-    private proccessAcceptTime(market, accept, offer, listing, theirCoin, fromInitiator: boolean) {
-        var that = this;
-        var bufferTime = fromInitiator ? 0 : 60 * 60 * 36; // do not participate if more than 12 hours have already passed (less than 36 hour remaining)
-        theirCoin.node.getInitTimestamp(accept.hashedSecret, (initTimestamp: number) => {
-            if (DexUtils.UTCTimestamp() - initTimestamp > theirCoin.node.confirmTime) { //ensure enough time has passed
-                theirCoin.node.getRefundTime(accept.hashedSecret, (refundTime: number) => {
-                    if (initTimestamp + refundTime - theirCoin.node.confirmTime - bufferTime < DexUtils.UTCTimestamp()) { //times up, wait for your own refund
-                        //TODO: wait 24 hours for your own refund 
-                        //or if bufferTime > 0, do nothing (do not participate)
-                    } else {
-                        if(fromInitiator)
-                            that.proccessAcceptParticipation(market, accept, offer, listing, theirCoin);
-                        else
-                            that.proccessAcceptInitiation(market, accept, offer, listing, theirCoin);
-                    }
-                }, (err: any) => {
-                    that.userService.handleError(err);
-                });
-            }
-        }, (err: any) => {
-            that.userService.handleError(err);
-        });
-    }
-    
-    private proccessAcceptParticipation(market: Market, accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, theirCoin: Coin) {
-        var that = this;
-        theirCoin.node.getEmptied(accept.hashedSecret, (emptied: boolean) => {
-            if(emptied) {
-                that.abortAccept(market, accept, 'swap has already been completed for hashedSecret ' + accept.hashedSecret);
-                that.finishAccept(market, accept);
-                return;
-            }
-            theirCoin.node.getInitiator(accept.hashedSecret, (initiator: string) => {
-                if (initiator != listing.redeemAddress) {
-                    that.abortAccept(market, accept, 'swap was sent to wrong address, got ' + initiator + ' instead of ' + listing.redeemAddress);
-                    return;
-                }
-                theirCoin.node.getValue(accept.hashedSecret, (value: BigNumber) => {
-                    var amount = accept.amount;
-                    if(listing.act == 'ask')
-                        amount = amount.times(listing.price);
 
-                    if(!amount.eq(value)) {
-                        that.abortAccept(market, accept, 'swap participated with wrong amount, got ' + value + ' was expeting ' + amount);
-                        return;
-                    } else {
-                        //participation appears valid redeem
-                        that.userService.getTradePrivateKey(theirCoin.name, function(key) {
-                            theirCoin.node.redeemSwap(listing.redeemAddress, accept.hashedSecret, that.storage.get(accept.hashedSecret), key, (txId: string): void => {
-                                offer.txId = txId;
-                                market.offers.add(offer, true);
-                                //TODO: don't assume complete until we have checked for reciept && confirm time
-                                that.finishAccept(market, accept);
-                                that.userService.showSuccess('Swap complete tx: ' + txId);
-                            }, (err) => {
-                                that.userService.handleError(err);
-                            }); 
-                        });
-                    }
-                }, (err: any) => {
-                    that.userService.handleError(err);
-                });
-            }, (err: any) => {
-                that.userService.handleError(err);
-            });
-        }, (err: any) => {
-            that.userService.handleError(err);
-        });
+    private finish(msg: FinishMessage, market: Market): boolean {
+        var redeem = market.redeems[msg.redeem];
+        if(!redeem) {
+            this.orphans[msg.redeem] = msg;
+        } else {
+            var offer = market.offers[market.accepts[market.participations[redeem.participate].accept].offer];
+            var listing = market.listings[offer.message.listing];
+            var node = market.getOfferCoin(offer.message).node;
+            if(node.recover(msg.hash, msg.sig) == offer.message.redeemAddress)
+                offer.finish = msg;
+            else {
+                console.log('invalid finish sig');
+                return false;
+            }
+        }
+        return true;
     }
 
-    private proccessAcceptInitiation(market: Market, accept: AcceptMessage, offer: OfferMessage, listing: ListingMessage, theirCoin: Coin) {
-        var that = this;
-        theirCoin.node.getEmptied(accept.hashedSecret, (emptied: boolean) => {
-            if(emptied) {
-                that.abortAccept(market, accept, 'swap has already been completed for hashedSecret ' + accept.hashedSecret);
-                that.finishAccept(market, accept);
-                return;
-            }
-            theirCoin.node.getParticipant(accept.hashedSecret, (participant: string) => {
-                if (participant != offer.redeemAddress) {
-                    that.abortAccept(market, accept, 'swap was sent to wrong address, got ' + participant + ' instead of ' + offer.redeemAddress);
-                    return;
-                }
-                theirCoin.node.getValue(accept.hashedSecret, (value: BigNumber) => {
-                    var amount = accept.amount;
-                    if(listing.act == 'bid')
-                        amount = amount.times(listing.price);
-
-                    if(!amount.eq(value)) {
-                        that.abortAccept(market, accept, 'swap initiated with wrong amount, got ' + value + ' was expeting ' + amount);
-                        return;
-                    } else {
-                        //initiation appears valid participate 
-                        var myCoin = market.getOfferCoin(offer);
-                        that.userService.getTradePrivateKey(myCoin.name, function(key) {
-                            myCoin.node.acceptSwap(listing, offer, accept, key, (txId: string): void => {
-                                offer.txId = txId;
-                                market.offers.add(offer, true); //save
-                                that.userService.showSuccess('Swap participated: ' + txId);
-                            }, (err) => {
-                                that.userService.handleError(err);
-                            }); 
-                        });
-                    }
-                }, (err: any) => {
-                    that.userService.handleError(err);
-                });
-            }, (err: any) => {
-                that.userService.handleError(err);
-            });
-        }, (err: any) => {
-            that.userService.handleError(err);
-        });
+    private staged(msg: AcceptMessage, market: Market): boolean {
+        var offer = market.offers[msg.offer];
+        if(!offer) {
+            this.orphans[msg.offer] = msg;
+        } else {
+            var listing = market.listings[offer.message.listing];
+            offer.accept = msg;
+            //TODO: look for transaction?
+        }
+        return true;
     }
-
-    //TODO: check message timestamps first before refund checks
-    private redeemOffer(offer: OfferMessage, market: Market, theirCoin: Coin, accept: AcceptMessage, myCoin: Coin) {
-        var that = this;
-        //TODO: check for emptied first
-        myCoin.node.getEmptied(accept.hashedSecret, (emptied: boolean) => {
-            if(emptied) {
-                that.abortOffer(market, offer, 'swap has already been completed for hashedSecret ' + accept.hashedSecret);
-                that.finishOffer(market, offer, accept);
-                return;
-            }
-        myCoin.node.getSecret(accept.hashedSecret, (secret: string) => { // if we get a valid secret, it means they have redeemed so we can now redeem 
-            if(secret && secret.length == 64 && secret != DexUtils.BAD_SECRET) {
-                //participation appears valid redeem
-                that.userService.getTradePrivateKey(theirCoin.name, function(key) {
-                    if(key) {
-                        theirCoin.node.redeemSwap(offer.redeemAddress, accept.hashedSecret, secret, key, (txId: string): void => {
-                            //TODO: store redeem transaction on accept object, in a new field
-                            market.accepts.add(accept, true);
-                            //TODO: don't assume complete until we have check for reciept && confirm time
-                            that.finishOffer(market, offer, accept);
-                            that.userService.showSuccess('Swap complete tx: ' + txId);
-                        }, (err) => {
-                            that.userService.handleError(err);
-                        }); 
-                    } else {
-                        that.userService.showError('unable to unlock account to complete a swap');
-                    }
-                });
-            } else { //see if we need to do a refund
-                myCoin.node.getInitTimestamp(accept.hashedSecret, (initTimestamp: number) => {
-                    myCoin.node.getRefundTime(accept.hashedSecret, (refundTime: number) => {
-                        if (initTimestamp + refundTime < DexUtils.UTCTimestamp()) { //times up, get refund
-                            that.userService.getTradePrivateKey(myCoin.name, function(key) {
-                                if(key) {
-                                    myCoin.node.refundSwap(offer.address, accept.hashedSecret, key, (txId: string): void => {
-                                        //TODO: don't assume complete until we have checked for reciept && confirm time
-                                        that.finishOffer(market, offer, accept);
-                                        that.userService.showSuccess('Swap refunded tx: ' + txId);
-                                    }, (err) => {
-                                        that.userService.handleError(err);
-                                    }); 
-                                } else {
-                                    that.userService.showError('unable to unlock account to complete a swap');
-                                }
-                            });
-                        }             
-                    }, (err: any) => {
-                        that.userService.handleError(err);
-                    });
-                }, (err: any) => {
-                    that.userService.handleError(err);
-                });
-            }
-        }, (err) => {
-            that.userService.handleError(err);
-        }); 
-        }, (err) => {
-            that.userService.handleError(err);
-        }); 
-    }
-
-    */
 
     processTrades(market: Market) {
         var that = this;
@@ -652,6 +484,8 @@ export class WebsocketService {
                                 that.userService.handleError(err);
                             });
                         });
+                    } else if (offer.acceptInfo.refundTime + offer.acceptInfo.timestamp < DexUtils.UTCTimestamp()) {
+                        //TODO: get a refund
                     }
                     //else, wait for participator to send message
                 } else if (!offer.participateInfo) {
@@ -676,7 +510,7 @@ export class WebsocketService {
                                     act: 'redeem',
                                     participate: offer.participate.hash,
                                     hash: txId,
-                                    sig: partCoin.node.signMessage(txId, key) //TODO: make sure sig check compares with listing redeem address
+                                    sig: partCoin.node.signMessage(txId, key) 
                                 };
                                 var msgStr = JSON.stringify(msg);
                                 localStorage.setItem(txId, msgStr);
@@ -701,153 +535,124 @@ export class WebsocketService {
                     }
                 } else if(!offer.redeemInfo) {
                     partCoin.node.getSwapRedeemTx(offer.redeem.hash, (info: RedeemInfo) => {
-
+                        var error = DexUtils.verifyRedeemInfo(info, offer, listing);
+                        if(!error) {
+                            if(iAmParticipator || info.confirmations >= partCoin.node.confirmations)
+                                offer.redeemInfo = info;
+                        }
+                        else {
+                            that.userService.handleError(error);
+                            //TODO: retry redeem if you own it?
+                        }
                     }, (err) => {
                         that.userService.handleError(err);
                     });
 
                 } else if(!offer.finish) {
-                    if(iAmInitiator)
+                    if(iAmParticipator)
                     {
-                        offer.finish = true;
+                        that.userService.getTradePrivateKey(initCoin.name, function(key) {
+                            initCoin.node.redeemSwap(offer.message.redeemAddress, offer.acceptInfo.hashedSecret, offer.redeemInfo.secret, key, (txId: string) => {
+                                var msg = {
+                                    act: 'finish',
+                                    redeem: offer.redeem.hash,
+                                    hash: txId,
+                                    sig: initCoin.node.signMessage(txId, key) 
+                                };
+                                var msgStr = JSON.stringify(msg);
+                                localStorage.setItem(txId, msgStr);
+
+                                if(that.processMessage(market, msg))
+                                {
+                                    that.messages[txId] = msg;
+                                    that.getSocket(market, function(ws) {
+                                        ws.send(msgStr);
+                                    });
+                                }
+                                else
+                                    that.userService.handleError('error finishing swap'); 
+                            }, (err) => {
+                                that.userService.handleError(err);
+                            });
+                        });
+                    } else if (offer.acceptInfo.refundTime + offer.acceptInfo.timestamp < DexUtils.UTCTimestamp()) {
+                        //TODO: if they never broadcasted a finish, get a refund and manually send them the funds, minus tx fee
                     }
+                } else {
+                    market.completedTrades.push(market.myTrades.splice(i, 1)[0]); 
                 }
             } catch(error) {
                 that.userService.handleError(error);
             }
         }
 
-        market.myOffers.array.slice().forEach(offer => {
-            try { //run all in try/catch so that one error doesn't hose the rest 
-                if(market.offerAccept.hasOwnProperty(offer.hash))
-                {
-                    var accept = market.offerAccept[offer.hash];
-                    var listing = market.listings.get(offer.listing);
-                    var myCoin = market.getOfferCoin(offer);
-                    var theirCoin = market.getListingCoin(listing);
-
-                    if(offer.txId){ //we've participated, wait for secret to get our funds, or refund
-                        that.redeemOffer(offer, market, theirCoin, accept, myCoin);
-                        return;
-                    }
-
-                    myCoin.node.getState(accept.hashedSecret, (state: number) => {
-                        switch(state) {
-                            case 0: //we haven't participated, verify their initiation
-                                theirCoin.node.getState(accept.hashedSecret, (state: number) => {
-                                    switch(state) {
-                                        case 0: //they haven't initiated, keep waiting
-                                            //TODO: if 1 hours pass, abort since they should have completed the tx before sending the accept message 
-                                            that.abortAccept(market, accept, 'swap was participated, was expecting initiated, hashedSecret ' + accept.hashedSecret);
-                                            //TODO: abort offer too?
-                                            break;
-                                        case 1:
-                                            that.proccessAcceptTime(market, accept, offer, listing, theirCoin, false);
-                                            break;
-                                        case 2:
-                                            that.abortAccept(market, accept, 'swap was participated, was expecting initiated, hashedSecret ' + accept.hashedSecret);
-                                            break;
-                                        default:
-                                            that.abortAccept(market, accept, 'invalid swap state ' + state + ', hashedSecret ' + accept.hashedSecret);
-                                            console.log('invalid swap state ' + state);
-                                            console.log(accept);
-                                            console.log(offer);
-                                            console.log(listing);
-                                            break;
-                                    }
-                                }, (err: any) => {
-                                    that.userService.handleError(err);
-                                });
-                                break;
-                            case 1:
-                                that.abortAccept(market, accept, 'swap was initiated, was expecting participated, hashedSecret ' + accept.hashedSecret);
-                                //TODO: wait 48 hours to get refund
-                                break;
-                            case 2:
-                                //TODO: why wasn't txId saved on offer?
-                                //we've participated, wait for secret to get our funds, or refund
-                                that.redeemOffer(offer, market, theirCoin, accept, myCoin);
-                                break;
-                            default:
-                                that.abortAccept(market, accept, 'invalid swap state ' + state + ', hashedSecret ' + accept.hashedSecret);
-                                console.log('invalid swap state ' + state);
-                                console.log(accept);
-                                console.log(offer);
-                                console.log(listing);
-                                break;
-                        }
-                    }, (err: any) => {
-                        that.userService.handleError(err);
-                    });
-
-                } else { //no accept, remove from myOffers after 5 minutes, TODO: put back in on acceptance
-                    var expire = offer.timestamp + (60 * 5); //5 minutes
-                    if(DexUtils.UTCTimestamp() > expire)
-                    {
-                        market.myOffers.remove(offer.hash);
-                    }
-                }
-            } catch(error) {
-                that.userService.handleError(error);
-            }
-        });
-
         //remove stale messages
         //listings after 2 days if no accepts, otherwise after 4 days 
         //all else after 4 days
         var expire2 = DexUtils.UTCTimestamp() - 60 * 60 * 24 * 2;
         var expire4 = DexUtils.UTCTimestamp() - 60 * 60 * 24 * 4;
-        market.listings.array.slice().forEach(l => {
-            if(l.timestamp < expire4 || (l.receivedon && l.receivedon < expire4)) {
-                that.purgeListing(market, l);
-            } else if(l.timestamp < expire2 || (l.receivedon && l.receivedon < expire2)) {
-                var accepts = market.listingAccepts.get(l.hash);
-                if(!accepts || accepts.length == 0) //only remove after 2 days if there are no accepts
+        for(var key in market.listings) {
+            if(market.listings.hasOwnProperty(key)) {
+                var listing: Listing = market.listings[key];
+                var l: any = listing.message;
+                if(l.timestamp < expire4 || (l.receivedon && l.receivedon < expire4)) {
                     that.purgeListing(market, l);
+                } else if(l.timestamp < expire2 || (l.receivedon && l.receivedon < expire2)) {
+                    var accepts = listing.offers.filter(o => o.accept);
+                    if(!accepts || accepts.length == 0) //only remove after 2 days if there are no offers 
+                        that.purgeListing(market, l);
+                }
             }
-        });
-        market.listings.getItTogether();
-        market.myListings.getItTogether();
+        }
 
-        market.offers.array.forEach(o => {
-            if(o.timestamp < expire4 || (o.receivedon && o.receivedon < expire4)) {
-                market.offers.removeMap(o.hash);
-                market.myOffers.removeMap(o.hash);
-            } 
-        });
-        market.offers.getItTogether();
-        market.myOffers.getItTogether();
-
-        market.accepts.array.forEach(a => {
-            if(a.timestamp < expire4 || (a.receivedon && a.receivedon < expire4)) {
-                market.accepts.removeMap(a.hash);
-                market.myAccepts.removeMap(a.hash);
-            } 
-        });
-        market.accepts.getItTogether();
-        market.myAccepts.getItTogether();
-
-        market.cancels.array.forEach(c => {
-            if(c.timestamp < expire4 || (c.receivedon && c.receivedon < expire4)) {
-                market.cancels.removeMap(c.hash);
-            } 
-        });
-        market.cancels.getItTogether();
+        for(var key in this.messages) {
+            if(this.messages.hasOwnProperty(key)) {
+                var o = this.messages[key];
+                if((o.timestamp && o.timestamp < expire4) || (o.receivedon && o.receivedon < expire4)) {
+                    this.deleteMessage(o);
+                }
+            }
+        }
     }
 
     //removes listing and associated offers and accepts from storage objects
-    //only removes from the map 
-    private purgeListing(market: Market, l: ListingMessage) {
-        market.listings.removeMap(l.hash);
-        market.myListings.removeMap(l.hash);
-        (market.listingOffers.get(l.hash) || []).slice().forEach(o => {
-            market.offers.removeMap(o.hash);
-            market.myOffers.removeMap(o.hash);
+    private purgeListing(market: Market, listing: Listing) {
+        var l = listing.message;
+        delete market.listings[l.hash];
+        this.deleteMessage(l.hash);
+        market.deleteListing(listing);
+        if(listing.cancel) {
+            this.deleteMessage(listing.cancel);
+        }
+        listing.offers.forEach(o => {
+            delete market.offers[o.message.hash];
+            this.deleteMessage(o.message.hash);
+            if(o.accept) {
+                delete market.accepts[o.accept.hash];
+                this.deleteMessage(o.accept);
+            }
+            if(o.participate) {
+                delete market.participations[o.participate.hash];
+                this.deleteMessage(o.participate);
+            }
+            if(o.redeem) {
+                delete market.redeems[o.redeem.hash];
+                this.deleteMessage(o.redeem);
+            }
+            if(o.refund) {
+                delete market.refunds[o.refund.hash];
+                this.deleteMessage(o.refund);
+            }
+            if(o.finish) {
+                this.deleteMessage(o.finish);
+            }
+            if(market.addressIsMine(o.message.address))
+                market.removeArrayHash(market.myOffers, o.message.hash);
         });
-        //TODO: store my completed swaps in another permanent place
-        (market.listingAccepts.get(l.hash) || []).slice().forEach(a => {
-            market.accepts.removeMap(a.hash);
-            market.myAccepts.removeMap(a.hash);
-        });
+    }
+
+    private deleteMessage(msg: any) {
+        delete this.messages[msg.hash];
+        localStorage.removeItem(msg.hash);
     }
 }

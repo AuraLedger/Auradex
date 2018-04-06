@@ -136,7 +136,7 @@ export interface RedeemMessage extends MessageBase {
     sig?: string;
 }
 
-/** act: redeem 
+/** act: finish 
  * participator redeemed initiation 
  */
 export interface FinishMessage extends MessageBase {
@@ -144,6 +144,20 @@ export interface FinishMessage extends MessageBase {
     redeem: string;
 
     /** txId of redeem/refund/sumartian */
+    hash: string;
+
+    /** signature of hash */
+    sig?: string;
+}
+
+/** act: refund 
+ * participator redeemed initiation 
+ */
+export interface RefundMessage extends MessageBase {
+    /** hash of accept */
+    accept: string;
+
+    /** txId of refund*/
     hash: string;
 
     /** signature of hash */

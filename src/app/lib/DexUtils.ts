@@ -1,6 +1,6 @@
 import { ListingMessage, CancelMessage, OfferMessage, AcceptMessage} from './AuradexApi';
 import { INode } from './INode';
-import { SwapInfo } from './SwapInfo';
+import { SwapInfo, RedeemInfo, RefundInfo } from './SwapInfo';
 import { Listing } from './Listing';
 import { Offer } from './Offer';
 import { BigNumber } from 'bignumber.js';
@@ -168,6 +168,16 @@ export class DexUtils {
 
         if(info.spent)
             return 'transaction has already been spent';
+
+        return null;
+    }
+
+    static verifyRedeemInfo(info: RedeemInfo, offer: Offer, listing: Listing): string {
+        if(!info.success)
+            return 'transaction failed';
+
+        if(info.hashedSecret != offer.acceptInfo.hashedSecret)
+            return 'redeem did not use same hashedSecret';
 
         return null;
     }

@@ -1,5 +1,5 @@
 import { ListingMessage, OfferMessage, AcceptMessage} from './AuradexApi';
-import { SwapInfo } from './SwapInfo';
+import { SwapInfo, RedeemInfo, RefundInfo } from './SwapInfo';
 import { BigNumber } from 'bignumber.js';
 
 export interface INode {
@@ -24,7 +24,8 @@ export interface INode {
 
     //verify tx
     getSwapInitTx(txId: string, success: (info: SwapInfo) => void, fail: (err: any) => void): void;
-    getSwapRedeemTx(txId: string, success: (info: SwapInfo) => void, fail: (err: any) => void): void;
+    getSwapRedeemTx(txId: string, success: (info: RedeemInfo) => void, fail: (err: any) => void): void;
+    getSwapRefundTx(txId: string, success: (info: RefundInfo) => void, fail: (err: any) => void): void;
 
     //swap checks
     getInitTimestamp(hashedSecret, success: (initTimestamp: number) => void, fail: (err: any) => void): void;

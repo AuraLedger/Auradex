@@ -2,7 +2,7 @@ export { NodeConfig, EtherConfig } from './NodeConfig';
 export { INode} from './INode';
 export { SwapInfo, RedeemInfo, RefundInfo } from './SwapInfo';
 export { EtherNode } from './EtherNode';
-export { ListingMessage, CancelMessage, OfferMessage, AcceptMessage, ParticipateMessage, RedeemMessage, MAX_MESSAGE_LENGTH } from './AuradexApi';
+export { ListingMessage, CancelMessage, OfferMessage, AcceptMessage, ParticipateMessage, RedeemMessage, RefundMessage, FinishMessage, MAX_MESSAGE_LENGTH } from './AuradexApi';
 export { NodeFactory} from './NodeFactory';
 export { DexUtils } from './DexUtils';
 export { ArrayMap } from './ArrayMap';
