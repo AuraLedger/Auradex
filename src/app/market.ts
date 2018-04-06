@@ -75,7 +75,9 @@ export class Market {
             if(msg.marketId != this.id)
                 return false;
 
-            var listing = new Listing(msg);
+            var mine = this.addressIsMine(msg.address);
+
+            var listing = new Listing(msg, mine);
 
             this.listings[msg.hash] = listing;
 
@@ -89,8 +91,7 @@ export class Market {
                 return false;
             }
 
-
-            if(this.addressIsMine(msg.address))
+            if(mine)
                 this.myListings.push(listing);
 
             return true;
@@ -120,8 +121,13 @@ export class Market {
         if(!this.accepts.hasOwnProperty(msg.hash)) {
             offer.accept = msg;
             this.accepts[msg.hash] = msg;
-            if(this.addressIsMine(listing.message.address) || this.addressIsMine(offer.message.address))
+            if(this.addressIsMine(listing.message.address))
                 this.myTrades.push(new Trade(listing, offer, this.coinAddress, this.baseAddress));
+            else if (this.addressIsMine(offer.message.address)) {
+                var trd: Trade = this.removeArrayHash(this.myOffers, offer.message.hash);
+                trd.setValues();
+                this.myTrades.push(trd);
+            }
             this.updateListing(listing);
             return true;
         }
@@ -160,6 +166,7 @@ export class Market {
         var accepted = listing.offers.reduce((sum, o) => sum.plus(o.accept ? o.accept.amount : 0), new BigNumber(0));
         var prev = listing.remaining;
         listing.remaining = listing.message.amount.minus(accepted);
+        listing.size = listing.remaining.times(listing.message.price);
 
         if(listing.remaining.isLessThan(listing.message.min)) {
             if(prev.isGreaterThanOrEqualTo(listing.message.min)) {
@@ -331,11 +338,10 @@ export class Market {
         }
     }
 
-    removeArrayHash(array, hash) {
+    removeArrayHash(array, hash): any {
         for(var i = 0; i < array.length; i++) {
             if(array[i].message.hash == hash) {
-                array.splice(i, 1);
-                return;
+                return array.splice(i, 1)[0];
             }
         }
     }

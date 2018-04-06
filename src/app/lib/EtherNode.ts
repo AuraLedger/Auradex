@@ -1,6 +1,7 @@
 import { INode } from './INode';
 import { EtherConfig } from './NodeConfig';
 import { ListingMessage, OfferMessage, AcceptMessage} from './AuradexApi';
+import { SwapInfo, RedeemInfo, RefundInfo } from './SwapInfo';
 import { DexUtils } from './DexUtils';
 import { EthAtomicSwap } from './EthAtomicSwap';
 import * as EthTx from'ethereumjs-tx';
@@ -13,16 +14,26 @@ const Web3 = require('web3');
 export class EtherNode implements INode {
     web3: any;
     gasGwei: BigNumber = new BigNumber(20); //proper fee estimation
-    confirmTime: number = 60 * 3; // 3 minutes
+    confirmations: number = 12;
     contractAddress: string;
     type: string;
     chainId: number;
+
+    encodedInitiate: string;
+    encodedParticipate: string;
+    encodedRedeem: string;
+    encodedRefund: string;
 
     constructor(config: EtherConfig) {
         this.web3 = new Web3(new Web3.providers.HttpProvider(config.rpcUrl));
         this.contractAddress = config.contractAddress;
         this.type = config.type;
         this.chainId = config.chainId;
+
+        this.encodedInitiate = this.web3.eth.abi.encodeFunctionSignature('initiate(uint256,bytes20,address)');
+        this.encodedParticipate = this.web3.eth.abi.encodeFunctionSignature('participate(uint256,bytes20,address)');
+        this.encodedRedeem = this.web3.eth.abi.encodeFunctionSignature('redeem(bytes32,bytes20)');
+        this.encodedRefund = this.web3.eth.abi.encodeFunctionSignature('refund(bytes20)');
     }
 
     getBalance(address: string, handler: (err: any, bal: BigNumber) => void):void {
@@ -43,7 +54,7 @@ export class EtherNode implements INode {
         if(settings.nodeUrl)
             this.web3 = new Web3(new Web3.providers.HttpProvider(settings.rpcUrl));
         if(settings.requiredConfirmations)
-            this.confirmTime = settings.confirmTime;
+            this.confirmations = settings.requiredConfirmations;
     }
 
     signMessage(msg: string, privateKey: string): string {
@@ -59,12 +70,10 @@ export class EtherNode implements INode {
         return new BigNumber(Web3.utils.fromWei(Web3.utils.toWei(gwei.toString(10), 'gwei'), 'ether'));
     }
 
-    //TODO: find gasLimit for swap transacitons init
     getInitFee(): BigNumber {
         return this.fromGwei(this.gasGwei.times(200000));
     }
 
-    //TODO: find gas limit for swap redeem
     getRedeemFee(): BigNumber{
         return this.fromGwei(this.gasGwei.times(150000));
     }
@@ -92,7 +101,6 @@ export class EtherNode implements INode {
                         from: from,
                         to: to,
                         value: Web3.utils.toHex(Web3.utils.toWei(amount.toString(10), 'ether')),
-                        data: null, //should be Buffer if needed 
                         chainId: that.chainId
                     }
 
@@ -137,21 +145,18 @@ export class EtherNode implements INode {
         });
     }
 
-    //TODO:these
-    initSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+    initSwap(listing: ListingMessage, offer: OfferMessage, hashedSecret: string, amount: BigNumber, privateKey: string, success: (txId: string) => void, fail: (error: any) => void) { 
         var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
             from: listing.address,
             gasPrice: Web3.utils.toWei(this.gasGwei.toString(10), 'gwei')
         });
 
         var refundTime = DexUtils.UTCTimestamp() + 60 * 60 * 48; //add 48 hours
-        var hashedSecret = this._hexString(accept.hashedSecret);
+        var hashedSecret = this._hexString(hashedSecret);
 
-        var amount: BigNumber;
+        var value: BigNumber = amount;
         if(listing.act == 'bid') {
-            amount = accept.amount.times(listing.price);
-        } else {
-            amount = accept.amount;
+            value = amount.times(listing.price);
         }
 
         var initiateMethod = contract.methods.initiate(refundTime, hashedSecret, offer.redeemAddress);
@@ -164,7 +169,7 @@ export class EtherNode implements INode {
                 that.web3.eth.accounts.signTransaction( {
                     from: listing.address,
                     to: that.contractAddress,
-                    value: Web3.utils.toWei(amount.toString(10), 'ether'),
+                    value: Web3.utils.toWei(value.toString(10), 'ether'),
                     gas: (new BigNumber(gas.toString())).times('1.2').toFixed(0),
                     gasPrice: Web3.utils.toWei(that.gasGwei.toString(10), 'gwei'),
                     chainId: that.chainId, 
@@ -186,7 +191,7 @@ export class EtherNode implements INode {
         });
     }
 
-    acceptSwap(listing: ListingMessage, offer: OfferMessage, accept: AcceptMessage, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void {
+    acceptSwap(listing: ListingMessage, offer: OfferMessage, acceptInfo: SwapInfo, privateKey: string, success: (txId: string) => void, fail: (error: any) => void): void { 
         var contract = new this.web3.eth.Contract(EthAtomicSwap.ContractABI, this.contractAddress, {
             from: offer.address,
             gasPrice: Web3.utils.toWei(this.gasGwei.toString(10), 'gwei')
@@ -194,15 +199,15 @@ export class EtherNode implements INode {
 
         //TODO: make sure there is atleast 30 hours remaining on the initiate swap
         var refundTime = DexUtils.UTCTimestamp() + 60 * 60 * 24; //add 24 hours
-        var hashedSecret = this._hexString(accept.hashedSecret);
+        var hashedSecret = this._hexString(acceptInfo.hashedSecret);
 
         var participateMethod = contract.methods.participate(refundTime, hashedSecret, listing.redeemAddress);
 
         var amount: BigNumber;
         if(listing.act == 'ask') {
-            amount = accept.amount.times(listing.price);
+            amount = acceptInfo.value.times(listing.price);
         } else {
-            amount = accept.amount;
+            amount = acceptInfo.value;
         }
 
         var that = this;
@@ -241,8 +246,6 @@ export class EtherNode implements INode {
             gasPrice: Web3.utils.toWei(this.gasGwei.toString(10), 'gwei')
         });
 
-        //TODO: make sure there is atleast 30 hours remaining on the initiate swap
-        var refundTime = Math.floor((new Date()).getTime() / 1000) + 60 * 60 * 24; //add 24 hours
         var _hashedSecret = this._hexString(hashedSecret);
         var _secret = this._hexString(secret);
 
@@ -314,6 +317,117 @@ export class EtherNode implements INode {
                     }
                 });
             }
+        });
+    }
+
+    getTxData(txId: string, success: (tx, txReceipt, blockNum, block) => void, fail: (err: any) => void) {
+        var that = this;
+        this.web3.eth.getTransaction(txId, (err, tx) => {
+            if(err)
+                fail(err);
+            else {
+                that.web3.eth.getTransactionReceipt(txId, (err, txReceipt) => {
+                    if(err)
+                        fail(err);
+                    else {
+                        that.web3.eth.getBlockNumber((err, blockNum) => {
+                            if(err)
+                                fail(err);
+                            else {
+                                that.web3.eth.getBlock(txReceipt.blockHash, false, (err, block) => {
+                                    if(err)
+                                        fail(err);
+                                    else {
+                                        success(tx, txReceipt, blockNum, block);
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    getSwapInitTx(txId: string, success: (info: SwapInfo) => void, fail: (err: any) => void): void {
+        var that = this;
+        this.getTxData(txId, (tx, txReceipt, blockNum, block) => {
+            var txRawData;
+            if(tx.input.startsWith(that.encodedInitiate)) {
+                txRawData = '0x' + tx.input.substr(that.encodedInitiate.length);
+            } else if (tx.input.startsWith(that.encodedParticipate)) {
+                txRawData = '0x' + tx.input.substr(that.encodedParticipate);
+            } else {
+                fail('invalid tx data, does not start with encoded initiate or participate function');
+            }
+
+            var txParams = that.web3.eth.abi.decodeParameters(['uint256','bytes20','address'], txRawData);
+
+            that.getEmptied(txParams['1'], (emptied: boolean) => {
+                success({
+                    success: txReceipt.status == 1,
+                    confirmations: blockNum - txReceipt.blockNumber,
+                    value: Web3.fromWei(tx.value, 'ether'),
+                    recipient: txParams['2'],
+                    timestamp: block.timestamp,
+                    refundTime: Web3.utils.hexToNumber(txParams['0']) - block.timestamp,
+                    spent: emptied,
+                    hashedSecret: txParams['1'],
+                });
+            }, (err) => {
+                fail(err);
+            });
+        }, (err) => {
+            fail(err);
+        });
+    }
+
+    getSwapRedeemTx(txId: string, success: (info: RedeemInfo) => void, fail: (err: any) => void): void {
+        var that = this;
+        this.getTxData(txId, (tx, txReceipt, blockNum, block) => {
+            var txRawData;
+            if(tx.input.startsWith(that.encodedRedeem)) {
+                txRawData = '0x' + tx.input.substr(that.encodedRedeem.length);
+            } else {
+                fail('invalid tx data, does not start with encoded redeem function');
+            }
+
+            var txParams = that.web3.eth.abi.decodeParameters(['bytes32','bytes20'], txRawData);
+
+            success({
+                success: txReceipt.status == 1,
+                confirmations: blockNum - txReceipt.blockNumber,
+                recipient: tx.from,
+                value: Web3.fromWei(tx.value, 'ether'),
+                secret: txParams['0'],
+                hashedSecret: txParams['1'],
+            });
+        }, (err) => {
+            fail(err);
+        });
+    }
+
+    getSwapRefundTx(txId: string, success: (info: RefundInfo) => void, fail: (err: any) => void): void {
+        var that = this;
+        this.getTxData(txId, (tx, txReceipt, blockNum, block) => {
+            var txRawData;
+            if(tx.input.startsWith(that.encodedRefund)) {
+                txRawData = '0x' + tx.input.substr(that.encodedRefund.length);
+            } else {
+                fail('invalid tx data, does not start with encoded refund function');
+            }
+
+            var txParams = that.web3.eth.abi.decodeParameters(['bytes20'], txRawData);
+
+            success({
+                success: txReceipt.status == 1,
+                confirmations: blockNum - txReceipt.blockNumber,
+                recipient: tx.from,
+                value: Web3.fromWei(tx.value, 'ether'),
+                hashedSecret: txParams['0'],
+            });
+        }, (err) => {
+            fail(err);
         });
     }
 

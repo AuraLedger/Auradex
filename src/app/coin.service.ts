@@ -95,7 +95,7 @@ export class CoinService {
                 chainId: 3,
                 rpcUrl: 'https://ropsten.infura.io/CQE6ZkyB1BOEZx4cOkAl',
                 contractAddress: '0x5bF0591D2fC2C694700203157dBb77e5b3738bCC',
-                confirmTime: 1, // 1 second
+                requiredConfirmations: 1, // 1 second
             },
             website: 'https://ethereum.org',
             ANN: '', 
@@ -117,7 +117,7 @@ export class CoinService {
                 chainId: 4,
                 rpcUrl: 'https://rinkeby.infura.io/CQE6ZkyB1BOEZx4cOkAl',
                 contractAddress: '0xf9D150355c4967aec3EaE3469aFc17bb327D1a2b',
-                confirmTime: 1, // 1 second
+                requiredConfirmations: 1, // 1 second
             },
             website: 'https://ethereum.org',
             ANN: '', 

@@ -97,24 +97,20 @@ export class DexUtils {
 
         //verify min
         if(offer.min.isGreaterThan(offer.amount)) {
-            fail('min ' + listing.min + ' is > than offer amount ' + offer.amount );
-            return;
+            return 'min ' + listing.min + ' is > than offer amount ' + offer.amount;
         }
 
         if(offer.amount.isGreaterThan(listing.amount)) {
-            fail('offer amount is greater than listing amount');
-            return;
+            return 'offer amount is greater than listing amount';
         }
 
         //verify simple amounts
         if(offer.amount.isLessThanOrEqualTo(0)) {
-            fail('amount must be greater than 0');
-            return;
+            return 'amount must be greater than 0';
         }
 
         if(listing.price.isLessThanOrEqualTo(0)) {
-            fail('price must be greater than 0');
-            return;
+            return 'price must be greater than 0';
         }
 
         //verify sig

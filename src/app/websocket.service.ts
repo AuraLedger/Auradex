@@ -77,12 +77,7 @@ export class WebsocketService {
     }
 
     connect(market: Market, cb?) {
-        if(!this.connected)
-        {
-
-
-            this.connected = true; 
-        }
+        this.connected = true; 
 
         if(!this.socks.hasOwnProperty(market.id))
         {
@@ -90,16 +85,10 @@ export class WebsocketService {
             var account = this.userService.getAccount();
 
             //TODO: reconnect after creating/changing account
-            //TODO: prompt wallet unlock on startup!!!
             //TODO: restore or check local storage on start up, and auto connect to markets with active trades/listings
             if(account) {
                 this.updateBookBalances(market.coin.name);
                 this.updateBookBalances(market.base.name);
-
-                market.coinAddress = account[market.coin.name].address;
-                market.baseAddress = account[market.base.name].address;
-
-                market.offers.array.forEach(o => that.considerOffer(market, o, market.listings.get(o.listing)));
 
                 if(market.tradeHandle || market.tradeHandle == 0) {
                     clearInterval(market.tradeHandle);
@@ -144,6 +133,7 @@ export class WebsocketService {
             case 'accept': return that.accept(json, market);
             case 'participate': return that.participate(json, market);
             case 'redeem': return that.redeem(json, market);
+            //case 'refund': return that.refund(json, market);
             case 'finish': return that.finish(json, market); 
             case 'staged': return that.staged(json, market); //restore staged message
 
@@ -460,30 +450,34 @@ export class WebsocketService {
                     });
                 } else if (!offer.participate) {
                     if(iAmParticipator) {
-                        that.userService.getTradePrivateKey(partCoin.name, function(key) {
-                            partCoin.node.acceptSwap(listing.message, offer.message, offer.acceptInfo, key, (txId: string) => {
-                                var msg = {
-                                    act: 'participate',
-                                    accept: offer.accept.hash,
-                                    hash: txId,
-                                    sig: partCoin.node.signMessage(txId, key)
-                                };
-                                var msgStr = JSON.stringify(msg);
-                                localStorage.setItem(txId, msgStr);
+                        if (offer.acceptInfo.refundTime + offer.acceptInfo.timestamp - DexUtils.UTCTimestamp() > 60 * 60 * 36) { //ensure 36 hours remain on initiate, else do not participate
+                            that.userService.getTradePrivateKey(partCoin.name, function(key) {
+                                partCoin.node.acceptSwap(listing.message, offer.message, offer.acceptInfo, key, (txId: string) => {
+                                    var msg = {
+                                        act: 'participate',
+                                        accept: offer.accept.hash,
+                                        hash: txId,
+                                        sig: partCoin.node.signMessage(txId, key)
+                                    };
+                                    var msgStr = JSON.stringify(msg);
+                                    localStorage.setItem(txId, msgStr);
 
-                                if(that.processMessage(market, msg))
-                                {
-                                    that.messages[txId] = msg;
-                                    that.getSocket(market, function(ws) {
-                                        ws.send(msgStr);
-                                    });
-                                }
-                                else
-                                    that.userService.handleError('error participating swap');
-                            }, (err) => {
-                                that.userService.handleError(err);
+                                    if(that.processMessage(market, msg))
+                                    {
+                                        that.messages[txId] = msg;
+                                        that.getSocket(market, function(ws) {
+                                            ws.send(msgStr);
+                                        });
+                                    }
+                                    else
+                                        that.userService.handleError('error participating swap');
+                                }, (err) => {
+                                    that.userService.handleError(err);
+                                });
                             });
-                        });
+                        } else {
+                            //TODO: remove trade from list
+                        }
                     } else if (offer.acceptInfo.refundTime + offer.acceptInfo.timestamp < DexUtils.UTCTimestamp()) {
                         //TODO: get a refund
                     }

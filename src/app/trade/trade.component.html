@@ -105,19 +105,21 @@
           <div fxLayout="column">
 
             <div fxLayout="row" fxLayoutAlign="space-between center" class="bidheader">
-              <div fxFlex="25">Sum {{market.base.ticker}}</div>
-              <div fxFlex="25">Size {{market.base.ticker}}</div>
-              <div fxFlex="25">Amount {{market.coin.ticker}}</div>
-              <div fxFlex="25">Price {{market.base.ticker}}</div>
+              <div fxFlex="20">Sum {{market.base.ticker}}</div>
+              <div fxFlex="20">Size {{market.base.ticker}}</div>
+              <div fxFlex="20">Min {{market.coin.ticker}}</div>
+              <div fxFlex="20">Amount {{market.coin.ticker}}</div>
+              <div fxFlex="20">Price {{market.base.ticker}}</div>
             </div>
 
             <div *ngIf="market.bid.array.length == 0">No bids.</div>
 
             <div *ngFor="let bid of market.bid.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
-              <div fxFlex="25" (click)="fillSum(bid)"><span>{{bid.sum | bigNumber: '1.8-8'}}</span></div>
-              <div fxFlex="25" (click)="fillTot(bid)"><span>{{bid.amount.times(bid.price) | bigNumber: '1.8-8'}}</span></div>
-              <div fxFlex="25" (click)="fillAmt(bid)"><span>{{bid.amount | bigNumber: '1.8-8'}}</span></div>
-              <div fxFlex="25" (click)="fillPrc(bid)"><span>{{bid.price | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillSum(bid)"><span>{{bid.sum | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillTot(bid)"><span>{{bid.size | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillAmt(bid)"><span>{{bid.message.min | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillAmt(bid)"><span>{{bid.remaining | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillPrc(bid)"><span>{{bid.message.price | bigNumber: '1.8-8'}}</span></div>
             </div>
           </div> 
         </mat-expansion-panel>
@@ -140,19 +142,21 @@
           <div fxLayout="column">
 
             <div fxLayout="row" fxLayoutAlign="space-between center" class="bidheader">
-              <div fxFlex="25">Price {{market.base.ticker}}</div>
-              <div fxFlex="25">Amount {{market.coin.ticker}}</div>
-              <div fxFlex="25">Size {{market.base.ticker}}</div>
-              <div fxFlex="25">Sum {{market.base.ticker}}</div>
+              <div fxFlex="20">Price {{market.base.ticker}}</div>
+              <div fxFlex="20">Amount {{market.coin.ticker}}</div>
+              <div fxFlex="20">Min {{market.coin.ticker}}</div>
+              <div fxFlex="20">Size {{market.base.ticker}}</div>
+              <div fxFlex="20">Sum {{market.base.ticker}}</div>
             </div>
 
             <div *ngIf="market.ask.array.length == 0">No asks.</div>
 
             <div *ngFor="let bid of market.ask.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
-              <div fxFlex="25" (click)="fillPrc(bid)"><span>{{bid.price | bigNumber: '1.8-8'}}</span></div>
-              <div fxFlex="25" (click)="fillAmt(bid)"><span>{{bid.amount | bigNumber: '1.8-8'}}</span></div>
-              <div fxFlex="25" (click)="fillTot(bid)"><span>{{bid.amount.times(bid.price) | bigNumber: '1.8-8'}}</span></div>
-              <div fxFlex="25" (click)="fillSum(bid)"><span>{{bid.sum | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillPrc(bid)"><span>{{bid.message.price | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillAmt(bid)"><span>{{bid.remaining | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillAmt(bid)"><span>{{bid.message.min | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillTot(bid)"><span>{{bid.size | bigNumber: '1.8-8'}}</span></div>
+              <div fxFlex="20" (click)="fillSum(bid)"><span>{{bid.sum | bigNumber: '1.8-8'}}</span></div>
             </div>
           </div> 
         </mat-expansion-panel>
@@ -178,14 +182,14 @@
             <div fxFlex="26" style="text-align: center">Time</div>
           </div>
 
-          <div *ngIf="market.myAccepts.array.length == 0">No Orders.</div>
+          <div *ngIf="market.myTrades.length == 0">No Trades.</div>
 
-          <div *ngFor="let accept of market.myAccepts.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
-            <div fxFlex="10" style="text-align: center">{{market.listings.map[market.offers.map[accept.offer].listing].act == 'bid' ? 'Buy' : 'Sell'}}</div>
-            <div fxFlex="18">{{accept.amount | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{market.listings.map[market.offers.map[accept.offer].listing].price | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{accept.amount.times(market.listings.map[market.offers.map[accept.offer].listing].price) | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="26" style="text-align: center">{{accept.timestamp * 1000 | date : 'short' }}</div>
+          <div *ngFor="let trade of market.myTrades" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+            <div fxFlex="10" style="text-align: center">{{trade.tradeType}}</div>
+            <div fxFlex="18">{{trade.amount | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{trade.price | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{trade.size | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="26" style="text-align: center">{{trade.time | date : 'short' }}</div>
           </div>
         </div>
       </mat-expansion-panel>
@@ -210,14 +214,14 @@
             <div fxFlex="26" style="text-align: center">Time</div>
           </div>
 
-          <div *ngIf="market.myOffers.array.length == 0">No Orders.</div>
+          <div *ngIf="market.myOffers.length == 0">No Offers.</div>
 
-          <div *ngFor="let offer of market.myOffers.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
-            <div fxFlex="10" style="text-align: center">{{market.listings.map[offer.listing].act == 'bid' ? 'Buy' : 'Sell'}}</div>
-            <div fxFlex="18">{{offer.amount | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{market.listings.map[offer.listing].price | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{offer.amount.times(market.listings.map[offer.listing].price) | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="26" style="text-align: center">{{offer.timestamp * 1000 | date : 'short' }}</div>
+          <div *ngFor="let trade of market.myOffers" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+            <div fxFlex="10" style="text-align: center">{{trade.tradeType}}</div>
+            <div fxFlex="18">{{trade.amount | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{trade.price | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{trade.size | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="26" style="text-align: center">{{trade.time | date : 'short' }}</div>
           </div>
         </div>
       </mat-expansion-panel>
@@ -243,14 +247,14 @@
             <div fxFlex="10">Cancel</div>
           </div>
 
-          <div *ngIf="market.myListings.array.length == 0">No Orders.</div>
+          <div *ngIf="market.myListings.length == 0">No Orders.</div>
 
-          <div *ngFor="let bid of market.myListings.array" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
-            <div fxFlex="10" style="text-align: center">{{bid.act == 'bid' ? 'Buy' : 'Sell'}}</div>
-            <div fxFlex="18">{{bid.amount | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{bid.price | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="18">{{bid.amount.times(bid.price) | bigNumber: '1.8-8'}}</div>
-            <div fxFlex="26" style="text-align: center">{{bid.timestamp * 1000 | date : 'short' }}</div>
+          <div *ngFor="let bid of market.myListings" fxLayout="row" fxLayoutAlign="space-between center" class="bidrow">
+            <div fxFlex="10" style="text-align: center">{{bid.message.act == 'bid' ? 'Buy' : 'Sell'}}</div>
+            <div fxFlex="18">{{bid.remaining | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{bid.message.price | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="18">{{bid.size | bigNumber: '1.8-8'}}</div>
+            <div fxFlex="26" style="text-align: center">{{bid.message.timestamp * 1000 | date : 'short' }}</div>
             <button mat-button color="accent" fxFlex="10" (click)="cancel(bid)">Cancel</button>
           </div>
         </div>

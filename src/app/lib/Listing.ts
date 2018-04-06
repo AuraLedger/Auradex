@@ -9,10 +9,14 @@ export class Listing {
 
     cancelling: boolean = false;
     sum: BigNumber = new BigNumber(0);
+    size: BigNumber;
+    mine: boolean;
 
-    constructor(msg: ListingMessage) {
+    constructor(msg: ListingMessage, _mine: boolean) {
         this.message = msg;
         this.offers = [];
         this.remaining = msg.amount
+        this.size = msg.amount.times(msg.price);
+        this.mine = _mine;
     }
 }

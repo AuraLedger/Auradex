@@ -497,6 +497,14 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     }
                 }
             }
+            
+            for(var mid in this.coinService.marketd) {
+                if(this.coinService.marketd.hasOwnProperty(mid)) {
+                    var mrkt = this.coinService.marketd[mid];
+                    mrkt.coinAddress = account[mrkt.coin.name].address;
+                    mrkt.baseAddress = account[mrkt.base.name].address;
+                }
+            }
 
             var wss = this.websocketService;
             keys.forEach(key => {
