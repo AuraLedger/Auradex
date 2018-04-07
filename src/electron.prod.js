@@ -1,4 +1,5 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, Menu, shell } = require('electron');
+const defaultMenu = require('electron-default-menu');
 const path = require('path');
 const url = require('url');
 
@@ -28,6 +29,11 @@ const createWindow = () => {
         // when you should delete the corresponding element.
         win = null;
     });
+
+    //menu
+    const menu = defaultMenu(app, shell);
+    menu[0].label = 'Auradex';
+    Menu.setApplicationMenu(Menu.buildFromTemplate(menu));
 }
 
 // This method will be called when Electron has finished

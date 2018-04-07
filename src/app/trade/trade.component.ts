@@ -488,18 +488,18 @@ export class TradeComponent implements OnInit, AfterViewInit {
                 if(!key.startsWith('auradex')) {
                     var json = JSON.parse(localStorage.getItem(key));
                     if(typeof json === 'object') {
-                    if(json.receivedon < expire) {
-                        localStorage.removeItem(key); 
-                    } else if(json.timestamp && json.timestamp < expire) {
-                        localStorage.removeItem(key); 
-                    } else {
-                        this.websocketService.messages[json.hash] = json;
-                        keys.push[key];
-                    }
+                        if(json.receivedon < expire) {
+                            localStorage.removeItem(key); 
+                        } else if(json.timestamp && json.timestamp < expire) {
+                            localStorage.removeItem(key); 
+                        } else {
+                            this.websocketService.messages[json.hash] = json;
+                            keys.push(key);
+                        }
                     }
                 }
             }
-            
+
             for(var mid in this.coinService.marketd) {
                 if(this.coinService.marketd.hasOwnProperty(mid)) {
                     var mrkt = this.coinService.marketd[mid];
