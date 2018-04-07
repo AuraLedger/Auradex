@@ -37,11 +37,16 @@ export class UserService {
                 useTestCoins: true,
                 gas: {},
                 nodeUrl: {},
+                marketUrl: {},
                 customCoins: []
             });
 
+        //backwards compatibility
         if(!this.settings.nodeUrl)
             this.settings.nodeUrl = {};
+
+        if(!this.settings.marketUrl)
+            this.settings.marketUrl = {};
 
         if(!this.settings.customCoins)
             this.settings.customCoins = [];

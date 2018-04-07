@@ -225,7 +225,7 @@ export class WebsocketService {
     }
 
     private offer(offer: OfferMessage, market: Market): boolean {
-        if(market.offers.has(offer.hash)) {
+        if(market.offers.hasOwnProperty(offer.hash)) {
             return false;
         }
 
@@ -330,7 +330,7 @@ export class WebsocketService {
 
     //TODO: check timestamps on all messages, ignore after 4 days
     private accept(accept: AcceptMessage, market: Market): boolean {
-        if(market.accepts.has(accept.hash)) {
+        if(market.accepts.hasOwnProperty(accept.hash)) {
             return false;
         }
         var offer: Offer = market.offers[accept.offer];
@@ -350,7 +350,7 @@ export class WebsocketService {
     }
 
     private participate(msg: ParticipateMessage, market: Market): boolean {
-        if(market.participations.has(msg.hash)) {
+        if(market.participations.hasOwnProperty(msg.hash)) {
             return false;
         }
         var accept = market.accepts[msg.accept];

@@ -35,7 +35,8 @@ export class DexUtils {
 
                 if(checkAmount.isGreaterThan(bal)) {
                     fail('lister is short on funds');
-                    return;
+                } else {
+                    success();
                 }
             }
         });
@@ -282,29 +283,28 @@ export class DexUtils {
         return null;
     }
 
-    static findMatches(listings: ListingMessage[], offer: ListingMessage, isBid: boolean): OfferMessage[] {
+    static findMatches(listings: Listing[], offer: ListingMessage, isBid: boolean): OfferMessage[] {
         var compareBids = (a,b) => a.isLessThanOrEqualTo(b);
         var compareAsks = (a,b) => b.isLessThanOrEqualTo(a);
         var compare = (isBid ? compareBids : compareAsks);
         var matches: OfferMessage[] = [];
         for(var i = 0; i < listings.length; i++) {
             var listing = listings[i];
-            if(compare(listing.price, offer.price))
+            if(compare(listing.message.price, offer.price))
             {
-                if(listing.redeemAddress == offer.address) //if you run into your own order, stop searching
+                if(listing.message.redeemAddress == offer.address) //if you run into your own order, stop searching
                     return matches;
 
-                var listingSize = listing.amount.times(listing.price);
                 var offerSize = offer.amount.times(offer.price);
-                if(listing.amount.isGreaterThanOrEqualTo(offer.min) && offer.amount.isGreaterThanOrEqualTo(listing.min))
+                if(listing.message.amount.isGreaterThanOrEqualTo(offer.min) && offer.amount.isGreaterThanOrEqualTo(listing.message.min))
                 {
                     //add match
-                    var tradeAmount = BigNumber.minimum(offer.amount, listing.amount);
-                    var newMin = BigNumber.maximum(offer.min, listing.min);
+                    var tradeAmount = BigNumber.minimum(offer.amount, listing.message.amount);
+                    var newMin = BigNumber.maximum(offer.min, listing.message.min);
                     offer.amount = offer.amount.minus(tradeAmount);
                     matches.push({
                         act: 'offer',
-                        listing: listing.hash || '',
+                        listing: listing.message.hash || '',
                         address: offer.address,
                         redeemAddress: offer.redeemAddress,
                         amount: tradeAmount,

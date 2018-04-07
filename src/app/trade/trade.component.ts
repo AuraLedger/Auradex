@@ -487,6 +487,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                 var key = localStorage.key(i);
                 if(!key.startsWith('auradex')) {
                     var json = JSON.parse(localStorage.getItem(key));
+                    if(typeof json === 'object') {
                     if(json.receivedon < expire) {
                         localStorage.removeItem(key); 
                     } else if(json.timestamp && json.timestamp < expire) {
@@ -494,6 +495,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                     } else {
                         this.websocketService.messages[json.hash] = json;
                         keys.push[key];
+                    }
                     }
                 }
             }

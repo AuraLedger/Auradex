@@ -1,5 +1,6 @@
 import { ListingMessage, CancelMessage, OfferMessage, AcceptMessage, ParticipateMessage, RedeemMessage } from './AuradexApi'
 import { Offer } from './Offer';
+import { BigNumber } from 'bignumber.js';
 
 export class Listing {
     message: ListingMessage;
