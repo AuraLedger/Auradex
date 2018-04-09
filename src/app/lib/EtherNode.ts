@@ -58,6 +58,8 @@ export class EtherNode implements INode {
     }
 
     signMessage(msg: string, privateKey: string): string {
+        if(msg.startsWith('0x'))
+            msg = msg.substr(2);
         return this.web3.eth.accounts.sign(msg, privateKey).signature;
     }
 
@@ -326,6 +328,10 @@ export class EtherNode implements INode {
             if(err)
                 fail(err);
             else {
+                if(!tx) {
+                    success(null, null, null, null);
+                    return;
+                }
                 that.web3.eth.getTransactionReceipt(txId, (err, txReceipt) => {
                     if(err)
                         fail(err);
@@ -334,6 +340,11 @@ export class EtherNode implements INode {
                             if(err)
                                 fail(err);
                             else {
+                                if(!txReceipt)
+                                {
+                                    success(tx, null, blockNum, null);
+                                    return;
+                                }
                                 that.web3.eth.getBlock(txReceipt.blockHash, false, (err, block) => {
                                     if(err)
                                         fail(err);
@@ -352,6 +363,10 @@ export class EtherNode implements INode {
     getSwapInitTx(txId: string, success: (info: SwapInfo) => void, fail: (err: any) => void): void {
         var that = this;
         this.getTxData(txId, (tx, txReceipt, blockNum, block) => {
+            if(!tx) {
+                //TODO: if tx has not appeared after some time, lower check frequency
+                return; // silently stop without calling success or fail
+            }
             var txRawData;
             if(tx.input.startsWith(that.encodedInitiate)) {
                 txRawData = '0x' + tx.input.substr(that.encodedInitiate.length);
@@ -363,11 +378,25 @@ export class EtherNode implements INode {
 
             var txParams = that.web3.eth.abi.decodeParameters(['uint256','bytes20','address'], txRawData);
 
+            if(!txReceipt) {
+                success({
+                    success: true,
+                    confirmations: 0,
+                    value: new BigNumber(Web3.utils.fromWei(tx.value, 'ether')),
+                    recipient: txParams['2'],
+                    timestamp: DexUtils.UTCTimestamp(),
+                    refundTime: Web3.utils.hexToNumber(txParams['0']) - DexUtils.UTCTimestamp(),
+                    spent: false,
+                    hashedSecret: txParams['1'],
+                });
+                return;
+            }
+
             that.getEmptied(txParams['1'], (emptied: boolean) => {
                 success({
                     success: txReceipt.status == 1,
                     confirmations: blockNum - txReceipt.blockNumber,
-                    value: Web3.fromWei(tx.value, 'ether'),
+                    value: new BigNumber(Web3.utils.fromWei(tx.value, 'ether')),
                     recipient: txParams['2'],
                     timestamp: block.timestamp,
                     refundTime: Web3.utils.hexToNumber(txParams['0']) - block.timestamp,
@@ -385,6 +414,10 @@ export class EtherNode implements INode {
     getSwapRedeemTx(txId: string, success: (info: RedeemInfo) => void, fail: (err: any) => void): void {
         var that = this;
         this.getTxData(txId, (tx, txReceipt, blockNum, block) => {
+            if(!tx) {
+                success(null);
+                return;
+            }
             var txRawData;
             if(tx.input.startsWith(that.encodedRedeem)) {
                 txRawData = '0x' + tx.input.substr(that.encodedRedeem.length);
@@ -394,11 +427,23 @@ export class EtherNode implements INode {
 
             var txParams = that.web3.eth.abi.decodeParameters(['bytes32','bytes20'], txRawData);
 
+            if(!txReceipt) {
+                success({
+                    success: true,
+                    confirmations: 0,
+                    recipient: tx.from,
+                    value: new BigNumber(Web3.utils.fromWei(tx.value, 'ether')),
+                    secret: txParams['0'],
+                    hashedSecret: txParams['1'],
+                });
+                return;
+            } 
+
             success({
                 success: txReceipt.status == 1,
                 confirmations: blockNum - txReceipt.blockNumber,
                 recipient: tx.from,
-                value: Web3.fromWei(tx.value, 'ether'),
+                value: new BigNumber(Web3.utils.fromWei(tx.value, 'ether')),
                 secret: txParams['0'],
                 hashedSecret: txParams['1'],
             });
@@ -423,7 +468,7 @@ export class EtherNode implements INode {
                 success: txReceipt.status == 1,
                 confirmations: blockNum - txReceipt.blockNumber,
                 recipient: tx.from,
-                value: Web3.fromWei(tx.value, 'ether'),
+                value: new BigNumber(Web3.utils.fromWei(tx.value, 'ether')),
                 hashedSecret: txParams['0'],
             });
         }, (err) => {

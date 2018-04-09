@@ -84,8 +84,7 @@ export class WebsocketService {
             var that = this;
             var account = this.userService.getAccount();
 
-            //TODO: reconnect after creating/changing account
-            //TODO: restore or check local storage on start up, and auto connect to markets with active trades/listings
+            //TODO: reconnect after changing account
             if(account) {
                 this.updateBookBalances(market.coin.name);
                 this.updateBookBalances(market.base.name);
@@ -102,16 +101,52 @@ export class WebsocketService {
             ws.onmessage = function(evt) {
                 if(evt.data.length > MAX_MESSAGE_LENGTH)
                     return;
+
+                if(evt.data == 'allsent')
+                {
+                    //broadcast messages that haven't been yet
+                    market.myListings.forEach(l => {
+                        if(!market.broadcasted.hasOwnProperty(l.message.hash))
+                            ws.send(JSON.stringify(l.message));
+                        if(l.cancel && !market.broadcasted.hasOwnProperty(l.cancel.hash))
+                            ws.send(JSON.stringify(l.cancel));
+                    });
+                    
+                    market.myOffers.forEach(o => {
+                        if(!market.broadcasted.hasOwnProperty(o.offer.message.hash))
+                            ws.send(JSON.stringify(o.offer.message));
+                    });
+
+                    market.myTrades.forEach(o => {
+                        if(!market.broadcasted.hasOwnProperty(o.offer.message.hash))
+                            ws.send(JSON.stringify(o.offer.message));
+                        if(o.offer.accept && o.offer.accept.act == 'accept' && !market.broadcasted.hasOwnProperty(o.offer.accept.hash)) //TODO: handle staged accepts somewhere
+                            ws.send(JSON.stringify(o.offer.accept));
+                        if(o.offer.participate && !market.broadcasted.hasOwnProperty(o.offer.participate.hash))
+                            ws.send(JSON.stringify(o.offer.participate));
+                        if(o.offer.redeem && !market.broadcasted.hasOwnProperty(o.offer.redeem.hash))
+                            ws.send(JSON.stringify(o.offer.redeem));
+                        if(o.offer.refund && !market.broadcasted.hasOwnProperty(o.offer.refund.hash))
+                            ws.send(JSON.stringify(o.offer.refund));
+                        if(o.offer.finish && !market.broadcasted.hasOwnProperty(o.offer.finish.hash))
+                            ws.send(JSON.stringify(o.offer.finish));
+                    });
+                    return;
+                }
+
                 var json = JSON.parse(evt.data);
 
-                if(json.act == 'staged') //ignore staged messages, should only be used locally
+                if(json.act == 'staged') //ignore staged accept messages, should only be used locally
                     return;
 
-                json.receivedon = DexUtils.UTCTimestamp();
-                if(json.hash && !that.messages.hasOwnProperty(json.hash))
-                {
-                    if(that.processMessage(market, json)) {
-                        that.saveMessage(json);
+                if(json.hash) {
+                    market.broadcasted[json.hash] = true;
+                    if(!that.messages.hasOwnProperty(json.hash))
+                    {
+                        json.receivedon = DexUtils.UTCTimestamp();
+                        if(that.processMessage(market, json)) {
+                            that.saveMessage(json);
+                        }
                     }
                 }
             };
@@ -133,7 +168,7 @@ export class WebsocketService {
             case 'accept': return that.accept(json, market);
             case 'participate': return that.participate(json, market);
             case 'redeem': return that.redeem(json, market);
-            //case 'refund': return that.refund(json, market);
+                //case 'refund': return that.refund(json, market);
             case 'finish': return that.finish(json, market); 
             case 'staged': return that.staged(json, market); //restore staged message
 
@@ -146,6 +181,8 @@ export class WebsocketService {
     }
 
     //TODO: if you recieve a listing that overlaps one of your listings, send an offer, and, if accepted, cancel and recreate a new listing subtracting offered amount -- maybe
+    // whoever has the later timestamp will cancel and send an offer instead
+    // compare hashes in case of a tie
     listing(msg: ListingMessage, market: Market): boolean {
         var error = DexUtils.verifyListing(msg, market.getListingCoin(msg).node);
         if(!error || error.trim() == '') {
@@ -231,14 +268,14 @@ export class WebsocketService {
 
         var listing: Listing = market.listings[offer.listing];
         if(!listing || listing.cancelling) {
-            this.orphans[offer.listing] = offer;
+            this.orphans.add(offer.listing, offer);
             return true;
         } else {
             var error = DexUtils.verifyOffer(offer, listing.message, market.getOfferCoin(offer).node); 
             if (!error) {
 
                 if(market.addOffer(offer, listing)) {
-                    if(this.connected) {
+                    if(this.connected && !listing.cancel) {
                         this.considerOffer(market, offer, listing);
                     }
                     return true; 
@@ -335,11 +372,14 @@ export class WebsocketService {
         }
         var offer: Offer = market.offers[accept.offer];
         if(!offer) {
-            this.orphans[accept.offer] = accept;
+            this.orphans.add(accept.offer, accept);
         } else {
             var listing: Listing = market.listings[offer.message.listing];
             var node = market.getListingCoin(listing.message).node;
-            if(node.recover(accept.hash, accept.sig) == listing.message.address)
+            var msg = accept.hash;
+            if(msg.startsWith('0x'))
+                msg = msg.substr(2);
+            if(node.recover(msg, accept.sig) == listing.message.address)
                 return market.addAccept(accept, offer, listing);
             else {
                 console.log('invalid accept sig');
@@ -355,11 +395,14 @@ export class WebsocketService {
         }
         var accept = market.accepts[msg.accept];
         if(!accept) {
-            this.orphans[msg.accept] = msg;
+            this.orphans.add(msg.accept, msg);
         } else {
             var offer = market.offers[accept.offer];
             var node = market.getOfferCoin(offer.message).node;
-            if(node.recover(msg.hash, msg.sig) == offer.message.address)
+            var hashmsg = msg.hash;
+            if(hashmsg.startsWith('0x'))
+                hashmsg = hashmsg.substr(2);
+            if(node.recover(hashmsg, msg.sig) == offer.message.address)
                 return market.addParticipate(msg, accept, offer);
             else {
                 console.log('invalid particiapte sig');
@@ -372,12 +415,15 @@ export class WebsocketService {
     private redeem(msg: RedeemMessage, market: Market): boolean {
         var partic = market.participations[msg.participate];
         if(!partic) {
-            this.orphans[msg.participate] = msg;
+            this.orphans.add(msg.participate, msg);
         } else {
             var offer = market.offers[market.accepts[partic.accept].offer];
             var listing = market.listings[offer.message.listing];
             var node = market.getOfferCoin(offer.message).node;
-            if(node.recover(msg.hash, msg.sig) == listing.message.redeemAddress)
+            var hashmsg = msg.hash;
+            if(hashmsg.startsWith('0x'))
+                hashmsg = hashmsg.substr(2);
+            if(node.recover(hashmsg, msg.sig) == listing.message.redeemAddress)
                 offer.redeem = msg;
             else {
                 console.log('invalid redeem sig');
@@ -390,12 +436,15 @@ export class WebsocketService {
     private finish(msg: FinishMessage, market: Market): boolean {
         var redeem = market.redeems[msg.redeem];
         if(!redeem) {
-            this.orphans[msg.redeem] = msg;
+            this.orphans.add(msg.redeem, msg);
         } else {
             var offer = market.offers[market.accepts[market.participations[redeem.participate].accept].offer];
             var listing = market.listings[offer.message.listing];
             var node = market.getOfferCoin(offer.message).node;
-            if(node.recover(msg.hash, msg.sig) == offer.message.redeemAddress)
+            var hashmsg = msg.hash;
+            if(hashmsg.startsWith('0x'))
+                hashmsg = hashmsg.substr(2);
+            if(node.recover(hashmsg, msg.sig) == offer.message.redeemAddress)
                 offer.finish = msg;
             else {
                 console.log('invalid finish sig');
@@ -408,7 +457,7 @@ export class WebsocketService {
     private staged(msg: AcceptMessage, market: Market): boolean {
         var offer = market.offers[msg.offer];
         if(!offer) {
-            this.orphans[msg.offer] = msg;
+            this.orphans.add(msg.offer, msg);
         } else {
             var listing = market.listings[offer.message.listing];
             offer.accept = msg;
@@ -441,7 +490,7 @@ export class WebsocketService {
                                 offer.acceptInfo = info;
                         }
                         else {
-                            market.unaccept(accept, offer, listing);
+                            market.unaccept(trade);
                             that.userService.handleError(error);
                         }
                         //TODO: retry accept if you own it?
@@ -599,6 +648,14 @@ export class WebsocketService {
             }
         }
 
+        for(var i = market.myOffers.length - 1; i >= 0; i--) {
+            var offer = market.myOffers[i].offer;
+            if(!offer.accept && offer.message.timestamp < DexUtils.UTCTimestamp() - 60 * 5) {
+                market.myOffers.splice(i, 1);
+                //TODO: make a new listing for this? or prompt user?
+            }
+        }
+
         for(var key in this.messages) {
             if(this.messages.hasOwnProperty(key)) {
                 var o = this.messages[key];
@@ -641,7 +698,7 @@ export class WebsocketService {
                 this.deleteMessage(o.finish);
             }
             if(market.addressIsMine(o.message.address))
-                market.removeArrayHash(market.myOffers, o.message.hash);
+                market.removeMyOffer(o.message.hash);
         });
     }
 

@@ -38,8 +38,8 @@ export class CoinService {
         {
             coin: 'Ropsten',
             base: 'Rinkeby',
-            webSocketServerURL: 'wss://rop-rnk.auradex.net',
-            //webSocketServerURL: 'ws://localhost:8998',
+            //webSocketServerURL: 'wss://rop-rnk.auradex.net',
+            webSocketServerURL: 'ws://localhost:8998',
         },
     ];
 

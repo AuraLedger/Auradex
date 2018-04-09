@@ -475,6 +475,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
         //if there is no account, TODO: prompt user to create one
         var account = this.userService.getAccount();
+        var that = this;
         if(!account) {
             var urlSegments = this.route.snapshot.url;
             if(urlSegments.length < 1 || urlSegments[0].path != 'wallet')
@@ -513,7 +514,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
                 var json = wss.messages[key];
                 var market = wss.getMarket(json);
                 if(market) {
-                    wss.processMessage(json, market);
+                    wss.processMessage(market, json);
                     wss.processOrphans(json, market);
                 }
             });
@@ -530,7 +531,7 @@ export class TradeComponent implements OnInit, AfterViewInit {
 
             if(myMarkets.length > 0) {
                 setTimeout(function() {
-                    this.userService.getTradePrivateKey(myMarkets[0].coin.name, (key) => {
+                    that.userService.getTradePrivateKey(myMarkets[0].coin.name, (key) => {
                         if(key) {
                             for(var i = 0; i < myMarkets.length; i++) {
                                 wss.connect(myMarkets[i]);

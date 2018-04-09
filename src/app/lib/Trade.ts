@@ -8,6 +8,8 @@ export class Trade {
     size: BigNumber;
     time: Date;
 
+    status: string = 'New';
+
     constructor(public listing: Listing, public offer: Offer, coinAddress: string, baseAddress: string) {
         if(listing.message.address == coinAddress || offer.message.address == coinAddress)
             this.tradeType = 'Sell';
@@ -24,5 +26,14 @@ export class Trade {
     setValues() {
         this.amount = this.offer.accept ? this.offer.accept.amount : this.offer.message.amount;
         this.size = this.amount.times(this.price);
+    }
+
+    setStatus() {
+        if(this.offer.finish)
+            this.status = 'Finished';
+        else if (this.offer.refundInfo) {
+            if(this.offer.refundInfo.confirmations
+        }
+
     }
 }

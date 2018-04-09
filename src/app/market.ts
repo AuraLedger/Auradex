@@ -23,6 +23,8 @@ export class Market {
     participations: any = {};
     refunds: any = {};
     redeems: any = {};
+
+    broadcasted: any = {}; //track received messages from server
     
     stagedAccepts: StoredArrayMap;
 
@@ -124,7 +126,7 @@ export class Market {
             if(this.addressIsMine(listing.message.address))
                 this.myTrades.push(new Trade(listing, offer, this.coinAddress, this.baseAddress));
             else if (this.addressIsMine(offer.message.address)) {
-                var trd: Trade = this.removeArrayHash(this.myOffers, offer.message.hash);
+                var trd: Trade = this.removeMyOffer(offer.message.hash);
                 trd.setValues();
                 this.myTrades.push(trd);
             }
@@ -135,10 +137,11 @@ export class Market {
         return false;
     }
 
-    unaccept(msg: AcceptMessage, offer: Offer, listing: Listing): void {
-        offer.accept = null;
-        offer.acceptInfo = null;
-        this.updateListing(listing);
+    unaccept(trade: Trade): void {
+        trade.offer.accept = null;
+        trade.offer.acceptInfo = null;
+        this.updateListing(trade.listing);
+        this.removeMyTrade(trade);
     }
 
     addParticipate(msg: ParticipateMessage, accept: AcceptMessage, offer: Offer): boolean {
@@ -161,7 +164,6 @@ export class Market {
         return false;
     }
 
-    //TODO: reduce listing amount on books after accept has been made
     updateListing(listing: Listing) {
         var accepted = listing.offers.reduce((sum, o) => sum.plus(o.accept ? o.accept.amount : 0), new BigNumber(0));
         var prev = listing.remaining;
@@ -172,7 +174,7 @@ export class Market {
             if(prev.isGreaterThanOrEqualTo(listing.message.min)) {
                 this.deleteListing(listing);
             }
-        } else if (prev.isLessThan(listing.message.min)) {
+        } else if (!listing.cancel && prev.isLessThan(listing.message.min)) {
             if(listing.message.act == 'bid') { 
                 this.bid.insert(listing);
             }
@@ -334,14 +336,30 @@ export class Market {
         }
 
         if(this.addressIsMine(listing.message.address)) {
-            this.removeArrayHash(this.myListings, listing.message.hash);
+            this.removeMyListing(listing.message.hash);
         }
     }
 
-    removeArrayHash(array, hash): any {
-        for(var i = 0; i < array.length; i++) {
-            if(array[i].message.hash == hash) {
-                return array.splice(i, 1)[0];
+    removeMyListing(hash: string): any {
+        for(var i = 0; i < this.myListings.length; i++) {
+            if(this.myListings[i].message.hash == hash) {
+                return this.myListings.splice(i, 1)[0];
+            }
+        }
+    }
+
+    removeMyOffer(hash: string): Trade {
+        for(var i = 0; i < this.myOffers.length; i++) {
+            if(this.myOffers[i].offer.message.hash == hash) {
+                return this.myOffers.splice(i, 1)[0];
+            }
+        }
+    }
+
+    removeMyTrade(trade: Trade): void {
+        for(var i = 0; i < this.myTrades.length; i++) {
+            if(this.myTrades[i].offer.message.hash == trade.offer.message.hash) {
+                this.myTrades.splice(i, 1);
             }
         }
     }
